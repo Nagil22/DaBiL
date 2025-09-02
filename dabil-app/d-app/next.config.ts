@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Remove the invalid experimental option
+  // experimental: {
+  //   allowedDevOrigins: [...] // ← This causes the warning
+  // }
 };
 
-export default nextConfig;
+module.exports = nextConfig;
