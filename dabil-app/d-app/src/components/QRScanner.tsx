@@ -1,4 +1,3 @@
-// Update the QRScanner.tsx component to actually scan QR codes
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, X } from 'lucide-react';
 
@@ -35,7 +34,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         
-        // Start scanning for QR codes
         videoRef.current.onloadedmetadata = () => {
           startScanning();
         };
@@ -69,33 +67,40 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
 
     if (!context) return;
 
-    // Set canvas size to match video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Scan for QR codes every 500ms
     intervalRef.current = setInterval(() => {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Try to detect QR code using a simple method
-        // In production, you'd use a proper QR code library like jsQR
         scanForQRCode(canvas);
       }
     }, 500);
   };
 
-  const scanForQRCode = (canvas: HTMLCanvasElement) => {
-    // Simple QR detection - in production use jsQR library
-    // For now, we'll simulate QR detection
-    // This is a placeholder that would be replaced with actual QR scanning
-    
-    // Simulated QR code detection logic would go here
-    // For testing purposes, we'll rely on manual input
+  const scanForQRCode = async (canvas: HTMLCanvasElement) => {
+    try {
+      // Use the BarcodeDetector API if available
+      if ('BarcodeDetector' in window) {
+        const barcodeDetector = new (window as any).BarcodeDetector({
+          formats: ['qr_code']
+        });
+        
+        const barcodes = await barcodeDetector.detect(canvas);
+        
+        if (barcodes.length > 0) {
+          const qrData = barcodes[0].rawValue;
+          processQRResult(qrData);
+        }
+      }
+    } catch (error) {
+      // BarcodeDetector not available or failed
+      console.log('BarcodeDetector not available');
+    }
   };
 
   const handleManualInput = () => {
-    const input = prompt('Enter restaurant URL or scan result:');
+    const input = prompt('Enter restaurant URL or ID:');
     if (input) {
       processQRResult(input);
     }
@@ -105,17 +110,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
     setScanResult(result);
     
     try {
-      // Extract restaurant ID from URL or QR data
       let restaurantId = '';
       
+      // Handle full URLs
       if (result.includes('restaurant_id=')) {
-        // URL format: http://localhost:3000?restaurant_id=abc123
         const url = new URL(result);
         restaurantId = url.searchParams.get('restaurant_id') || '';
-      } else if (result.startsWith('restaurant_id_')) {
-        // Direct format: restaurant_id_abc123
+      } 
+      // Handle direct restaurant ID format
+      else if (result.includes('restaurant_id_')) {
         restaurantId = result.replace('restaurant_id_', '');
-      } else {
+      }
+      // Handle plain restaurant ID (UUID format)
+      else if (result.match(/^[a-f0-9-]{36}$/i)) {
+        restaurantId = result;
+      }
+      // Handle full URLs pointing to your frontend
+      else if (result.includes('dabil-1.onrender.com')) {
+        const url = new URL(result);
+        restaurantId = url.searchParams.get('restaurant_id') || '';
+      }
+      else {
         throw new Error('Invalid QR code format');
       }
       
@@ -123,10 +138,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
         throw new Error('Restaurant ID not found in QR code');
       }
       
+      console.log('Extracted restaurant ID:', restaurantId);
       stopCamera();
       onScan(restaurantId);
       
     } catch (error) {
+      console.error('QR processing error:', error);
       setError('Invalid QR code. Please try scanning again or enter manually.');
     }
   };
@@ -180,14 +197,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
                 onClick={startCamera}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-2"
               >
-                📱 Start Camera
+                Start Camera
               </button>
               
               <button
                 onClick={handleManualInput}
                 className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
               >
-                ⌨️ Enter Manually
+                Enter Manually
               </button>
             </div>
           ) : (
@@ -201,7 +218,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
                 />
                 <canvas ref={canvasRef} className="hidden" />
                 
-                {/* Scanning overlay */}
                 <div className="absolute inset-4 border-2 border-blue-500 rounded-lg">
                   <div className="absolute inset-0 border border-white rounded-lg opacity-50"></div>
                   <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-blue-500"></div>
@@ -212,7 +228,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
               </div>
               
               <div className="text-sm text-gray-600 mb-4">
-                📍 Position the QR code within the frame
+                Position the QR code within the frame
               </div>
               
               <div className="flex space-x-2">
