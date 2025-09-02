@@ -1,0 +1,277 @@
+@import "tailwindcss";
+
+/* Custom brand colors and styles */
+:root {
+  --dabil-blue: #2563eb;
+  --dabil-blue-dark: #1d4ed8;
+  --dabil-gold: #f59e0b;
+  --dabil-gold-dark: #d97706;
+  --dabil-background: #f8fafc;
+}
+
+@layer base {
+  * {
+    border-color: theme(colors.gray.200);
+  }
+  
+  body {
+    background-color: theme(colors.gray.50);
+    color: theme(colors.gray.900);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: theme(colors.gray.100);
+    border-radius: theme(borderRadius.full);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: theme(colors.gray.300);
+    border-radius: theme(borderRadius.full);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: theme(colors.gray.400);
+  }
+}
+
+@layer components {
+  /* Brand gradient button */
+  .btn-brand {
+    background: linear-gradient(to right, theme(colors.blue.600), theme(colors.blue.700));
+    color: theme(colors.white);
+    font-weight: theme(fontWeight.medium);
+    padding: theme(spacing.3) theme(spacing.6);
+    border-radius: theme(borderRadius.xl);
+    transition: all theme(transitionDuration.200) theme(transitionTimingFunction.in-out);
+    transform: scale(1);
+    box-shadow: theme(boxShadow.lg);
+  }
+
+  .btn-brand:hover {
+    background: linear-gradient(to right, theme(colors.blue.700), theme(colors.blue.800));
+    transform: scale(1.02);
+  }
+
+  /* Gold accent button */
+  .btn-gold {
+    background: linear-gradient(to right, theme(colors.yellow.500), theme(colors.yellow.600));
+    color: theme(colors.white);
+    font-weight: theme(fontWeight.medium);
+    padding: theme(spacing.3) theme(spacing.6);
+    border-radius: theme(borderRadius.xl);
+    transition: all theme(transitionDuration.200) theme(transitionTimingFunction.in-out);
+    transform: scale(1);
+    box-shadow: theme(boxShadow.lg);
+  }
+
+  .btn-gold:hover {
+    background: linear-gradient(to right, theme(colors.yellow.600), theme(colors.yellow.700));
+    transform: scale(1.02);
+  }
+
+  /* Card component */
+  .card {
+    background-color: theme(colors.white);
+    border-radius: theme(borderRadius.xl);
+    box-shadow: theme(boxShadow.lg);
+    border: 1px solid theme(colors.gray.200);
+    transition: box-shadow theme(transitionDuration.300) theme(transitionTimingFunction.in-out);
+  }
+
+  .card:hover {
+    box-shadow: theme(boxShadow.xl);
+  }
+
+  /* Glass effect */
+  .glass {
+    background-color: rgb(255 255 255 / 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgb(255 255 255 / 0.2);
+    box-shadow: theme(boxShadow.lg);
+  }
+
+  /* Loading spinner */
+  .spinner {
+    animation: spin 1s linear infinite;
+    border-radius: theme(borderRadius.full);
+    border: 2px solid theme(colors.gray.300);
+    border-top-color: theme(colors.blue.600);
+  }
+
+  /* Focus styles */
+  .focus-brand {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+
+  .focus-brand:focus {
+    outline: 2px solid theme(colors.blue.500);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area for mobile devices */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Animation utilities */
+  .fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Mobile-first responsive design helpers */
+@media (max-width: 640px) {
+  .mobile-full {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  .mobile-padding {
+    padding: theme(spacing.2) theme(spacing.4);
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+}
+
+/* Add to globals.css for better mobile support */
+@media (max-width: 768px) {
+  /* Header responsive adjustments */
+  .header-title {
+    font-size: 1rem;
+  }
+  
+  .header-user-info {
+    display: none;
+  }
+  
+  /* Modal responsive adjustments */
+  .modal-container {
+    margin: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  /* Form responsive adjustments */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Button responsive adjustments */
+  .button-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .button-group button {
+    width: 100%;
+  }
+  
+  /* Table responsive adjustments */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Manager dashboard responsive */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  
+  /* POS interface responsive */
+  .pos-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .guest-card {
+    margin-bottom: 1rem;
+  }
+  
+  /* Menu responsive */
+  .menu-item-card {
+    padding: 1rem;
+  }
+  
+  .menu-item-actions {
+    margin-top: 1rem;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .header-logo {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  
+  .modal-container {
+    margin: 0.5rem;
+  }
+  
+  /* Touch-friendly buttons */
+  button {
+    min-height: 44px;
+  }
+}
