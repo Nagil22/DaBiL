@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, X } from 'lucide-react';
+import QrScanner from 'qr-scanner';
 
 interface QRScannerProps {
   onScan: (restaurantId: string) => void;
@@ -11,32 +12,26 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
 
   const startCamera = async () => {
     try {
       setError('');
       setScanning(true);
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-      
-      streamRef.current = stream;
-      
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        scannerRef.current = new QrScanner(
+          videoRef.current,
+          (result) => processQRResult(result.data),
+          {
+            onDecodeError: () => {
+              // Ignore decode errors, keep scanning
+            },
+          }
+        );
         
-        videoRef.current.onloadedmetadata = () => {
-          startScanning();
-        };
+        await scannerRef.current.start();
       }
     } catch (err) {
       setError('Camera access denied. Please enable camera permissions and try again.');
@@ -45,58 +40,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
     }
     
     setScanning(false);
-  };
-
-  const startScanning = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    intervalRef.current = setInterval(() => {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        scanForQRCode(canvas);
-      }
-    }, 500);
-  };
-
-  const scanForQRCode = async (canvas: HTMLCanvasElement) => {
-    try {
-      // Use the BarcodeDetector API if available
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code']
-        });
-        
-        const barcodes = await barcodeDetector.detect(canvas);
-        
-        if (barcodes.length > 0) {
-          const qrData = barcodes[0].rawValue;
-          processQRResult(qrData);
-        }
-      }
-    } catch (error) {
-      // BarcodeDetector not available or failed
-      console.log('BarcodeDetector not available');
-    }
   };
 
   const handleManualInput = () => {
@@ -216,7 +166,6 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
                   playsInline
                   muted
                 />
-                <canvas ref={canvasRef} className="hidden" />
                 
                 <div className="absolute inset-4 border-2 border-blue-500 rounded-lg">
                   <div className="absolute inset-0 border border-white rounded-lg opacity-50"></div>
