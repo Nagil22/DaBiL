@@ -150,6 +150,7 @@ useEffect(() => {
 
 // Update the QR check-in handler
 const handleQRCheckIn = async (restaurantId: string) => {
+   alert(`DEBUG: handleQRCheckIn called with ${restaurantId}`);
   if (!user) {
     alert('Please log in first');
     return;
