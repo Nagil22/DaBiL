@@ -148,7 +148,6 @@ useEffect(() => {
   }
 }, [user, currentView]);
 
-// Update the QR check-in handler
 const handleQRCheckIn = async (restaurantId: string) => {
   if (!user) {
     alert('Please log in first');
@@ -158,24 +157,62 @@ const handleQRCheckIn = async (restaurantId: string) => {
   try {
     setLoading(true);
     
+    // Check if user already has an active session
+    try {
+      const activeSessionResponse = await apiService.getActiveSession();
+      if (activeSessionResponse.session) {
+        // User has active session, get restaurant details and go to menu
+        const restaurantResponse = await apiService.getRestaurant(restaurantId);
+        const restaurant = restaurantResponse.restaurant;
+        
+        setActiveSession(activeSessionResponse.session);
+        setSelectedRestaurant(restaurant);
+        setCurrentView('menu'); // Go directly to menu instead of session
+        
+        alert(`Welcome back to ${restaurant.name}! Continuing your session.`);
+        return;
+      }
+    } catch (error) {
+      // No active session found, proceed with new check-in
+      console.log('No active session found, creating new one');
+    }
+    
     // Get restaurant details first
     const restaurantResponse = await apiService.getRestaurant(restaurantId);
     const restaurant = restaurantResponse.restaurant;
     
-    // Proceed with check-in
+    // Create new session
     const response = await apiService.checkIn({ 
       restaurantId: restaurantId,
-      tableNumber: undefined, // Will be assigned by staff
+      tableNumber: undefined,
       partySize: 1
     });
     
     setActiveSession(response.session);
     setSelectedRestaurant(restaurant);
-    setCurrentView('session');
+    setCurrentView('menu'); // Go directly to menu for new sessions too
     
-    alert(`Welcome to ${restaurant.name}! You're now checked in with session code: ${response.session.session_code}`);
+    alert(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}`);
+    
   } catch (error: any) {
-    alert(error.message || 'Check-in failed. Please try again.');
+    if (error.message.includes('already have an active session')) {
+      // Handle the duplicate session case
+      try {
+        const restaurantResponse = await apiService.getRestaurant(restaurantId);
+        const restaurant = restaurantResponse.restaurant;
+        const activeSessionResponse = await apiService.getActiveSession();
+        
+        setActiveSession(activeSessionResponse.session);
+        setSelectedRestaurant(restaurant);
+        setCurrentView('menu');
+        
+        alert(`You already have an active session at ${restaurant.name}. Taking you to the menu.`);
+      } catch (secondError: any) {
+        alert('Session error. Please try again or contact support.');
+      }
+    } else {
+      alert(error.message || 'Check-in failed. Please try again.');
+    }
   } finally {
     setLoading(false);
   }
