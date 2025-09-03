@@ -24,9 +24,9 @@ exports.getRestaurant = async (req, res) => {
     
     // Get restaurant with menu items
     const restaurantResult = await pool.query(
-      'SELECT * FROM restaurants WHERE id = $1 AND status = $2',
-      [id, 'active']
-    );
+  'SELECT * FROM restaurants WHERE id = $1',
+  [id]
+);
     
     if (restaurantResult.rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
