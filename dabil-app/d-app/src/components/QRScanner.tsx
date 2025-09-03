@@ -97,45 +97,45 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
   };
 
   const processQRResult = (result: string) => {
-    console.log('Processing QR result:', result);
-    setScanResult(result);
+  console.log('Processing QR result:', result);
+  setScanResult(result);
+  
+  try {
+    let restaurantId = '';
     
-    try {
-      let restaurantId = '';
-      
-      // Handle different QR code formats
-      if (result.includes('restaurant_id=')) {
-        const url = new URL(result);
-        restaurantId = url.searchParams.get('restaurant_id') || '';
-      } 
-      else if (result.includes('restaurant_id_')) {
-        restaurantId = result.replace('restaurant_id_', '');
-      }
-      else if (result.match(/^[a-f0-9-]{36}$/i)) {
-        restaurantId = result;
-      }
-      else if (result.includes('dabil') && result.includes('restaurant_id=')) {
-        const url = new URL(result);
-        restaurantId = url.searchParams.get('restaurant_id') || '';
-      }
-      else {
-        throw new Error('Invalid QR code format');
-      }
-      
-      if (!restaurantId) {
-        throw new Error('Restaurant ID not found in QR code');
-      }
-      
-      console.log('Extracted restaurant ID:', restaurantId);
-      stopCamera();
-      onScan(restaurantId);
-      
-    } catch (error) {
-      console.error('QR processing error:', error);
-      setError('Invalid QR code. Please try scanning again or enter restaurant ID manually.');
-      setScanResult('');
+    // Handle different QR code formats
+    if (result.includes('restaurant_id=')) {
+      const url = new URL(result);
+      restaurantId = url.searchParams.get('restaurant_id') || '';
+    } 
+    else if (result.includes('restaurant_id_')) {
+      restaurantId = result.replace('restaurant_id_', '');
     }
-  };
+    else if (result.match(/^[a-f0-9-]{36}$/i)) {
+      restaurantId = result;
+    }
+    else if (result.includes('dabil') && result.includes('restaurant_id=')) {
+      const url = new URL(result);
+      restaurantId = url.searchParams.get('restaurant_id') || '';
+    }
+    else {
+      throw new Error('Invalid QR code format');
+    }
+    
+    if (!restaurantId) {
+      throw new Error('Restaurant ID not found in QR code');
+    }
+    
+    console.log('About to call onScan with restaurant ID:', restaurantId);
+    stopCamera();
+    onScan(restaurantId);
+    
+  } catch (error) {
+    console.error('QR processing error:', error);
+    setError('Invalid QR code. Please try scanning again or enter restaurant ID manually.');
+    setScanResult('');
+  }
+};
 
   const handleManualInput = () => {
     const input = prompt('Enter restaurant ID (UUID format):');
