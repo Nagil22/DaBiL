@@ -11,31 +11,71 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState('');
+  const [hasCamera, setHasCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const scannerRef = useRef<QrScanner | null>(null);
+
+  // Check camera availability
+  useEffect(() => {
+    QrScanner.hasCamera().then(hasCamera => {
+      setHasCamera(hasCamera);
+      if (!hasCamera) {
+        setError('No camera found on this device');
+      }
+    });
+  }, []);
 
   const startCamera = async () => {
     try {
       setError('');
       setScanning(true);
       
-      if (videoRef.current) {
-        scannerRef.current = new QrScanner(
-          videoRef.current,
-          (result) => processQRResult(result.data),
-          {
-            onDecodeError: () => {
-              // Ignore decode errors, keep scanning
-            },
-          }
-        );
-        
-        await scannerRef.current.start();
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
       }
-    } catch (err) {
-      setError('Camera access denied. Please enable camera permissions and try again.');
+
+      if (!hasCamera) {
+        throw new Error('No camera available');
+      }
+
+      // Stop any existing scanner
+      if (scannerRef.current) {
+        scannerRef.current.stop();
+        scannerRef.current.destroy();
+      }
+      
+      scannerRef.current = new QrScanner(
+        videoRef.current,
+        (result) => {
+          console.log('QR scan result:', result.data);
+          processQRResult(result.data);
+        },
+        {
+          onDecodeError: (error) => {
+            // Silently ignore decode errors to keep scanning
+            console.log('Decode error (continuing):', error);
+          },
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+        }
+      );
+      
+      await scannerRef.current.start();
+      console.log('Camera started successfully');
+      
+    } catch (err: any) {
+      console.error('Camera start error:', err);
       setScanning(false);
+      
+      if (err.name === 'NotAllowedError' || err.message.includes('permission')) {
+        setError('Camera permission denied. Please allow camera access and refresh the page.');
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera found. Please ensure your device has a camera.');
+      } else if (err.name === 'NotSupportedError') {
+        setError('Camera not supported on this browser. Try Chrome or Safari.');
+      } else {
+        setError(`Camera error: ${err.message}. Try refreshing the page.`);
+      }
     }
   };
 
@@ -45,38 +85,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
       scannerRef.current.destroy();
       scannerRef.current = null;
     }
-    
     setScanning(false);
   };
 
-  const handleManualInput = () => {
-    const input = prompt('Enter restaurant URL or ID:');
-    if (input) {
-      processQRResult(input);
-    }
-  };
-
   const processQRResult = (result: string) => {
+    console.log('Processing QR result:', result);
     setScanResult(result);
     
     try {
       let restaurantId = '';
       
-      // Handle full URLs
+      // Handle different QR code formats
       if (result.includes('restaurant_id=')) {
         const url = new URL(result);
         restaurantId = url.searchParams.get('restaurant_id') || '';
       } 
-      // Handle direct restaurant ID format
       else if (result.includes('restaurant_id_')) {
         restaurantId = result.replace('restaurant_id_', '');
       }
-      // Handle plain restaurant ID (UUID format)
       else if (result.match(/^[a-f0-9-]{36}$/i)) {
         restaurantId = result;
       }
-      // Handle full URLs pointing to your frontend
-      else if (result.includes('dabil-1.onrender.com')) {
+      else if (result.includes('dabil') && result.includes('restaurant_id=')) {
         const url = new URL(result);
         restaurantId = url.searchParams.get('restaurant_id') || '';
       }
@@ -94,7 +124,20 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
       
     } catch (error) {
       console.error('QR processing error:', error);
-      setError('Invalid QR code. Please try scanning again or enter manually.');
+      setError('Invalid QR code. Please try scanning again or enter restaurant ID manually.');
+      setScanResult('');
+    }
+  };
+
+  const handleManualInput = () => {
+    const input = prompt('Enter restaurant ID (UUID format):');
+    if (input) {
+      if (input.match(/^[a-f0-9-]{36}$/i)) {
+        stopCamera();
+        onScan(input);
+      } else {
+        setError('Please enter a valid restaurant ID in UUID format');
+      }
     }
   };
 
@@ -123,6 +166,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
+            {error.includes('permission') && (
+              <div className="mt-2 text-sm">
+                <p>To fix this:</p>
+                <p>1. Click the camera icon in your browser's address bar</p>
+                <p>2. Select "Allow" for camera access</p>
+                <p>3. Refresh the page and try again</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -143,18 +194,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
                 Point your camera at the restaurant's QR code to check in
               </p>
               
-              <button
-                onClick={startCamera}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-2"
-              >
-                Start Camera
-              </button>
+              {hasCamera ? (
+                <button
+                  onClick={startCamera}
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-2"
+                >
+                  Start Camera
+                </button>
+              ) : (
+                <div className="w-full bg-gray-400 text-white py-3 rounded-lg font-medium mb-2">
+                  Camera Not Available
+                </div>
+              )}
               
               <button
                 onClick={handleManualInput}
                 className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
               >
-                Enter Manually
+                Enter Restaurant ID Manually
               </button>
             </div>
           ) : (
@@ -165,6 +222,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
                   className="w-full h-64 bg-black rounded-lg object-cover mb-4"
                   playsInline
                   muted
+                  autoPlay
                 />
                 
                 <div className="absolute inset-4 border-2 border-blue-500 rounded-lg">
