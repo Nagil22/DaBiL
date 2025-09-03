@@ -1796,7 +1796,7 @@ return (
       {/* Modals */}
       {showQRScanner && (
         <QRScanner
-          onScan={handleQRScan}
+          onScan={handleQRCheckIn}
           onClose={() => setShowQRScanner(false)}
         />
       )}
