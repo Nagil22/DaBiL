@@ -441,14 +441,7 @@ const verifyPayment = async (reference: string) => {
                 >
                   Dashboard
                 </button>
-                <button
-                  onClick={() => setCurrentView('pos')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    currentView === 'pos' ? 'bg-blue-800' : 'hover:bg-blue-700'
-                  }`}
-                >
-                  POS View
-                </button>
+              
               </div>
             )}
 
@@ -562,7 +555,7 @@ const renderGuestInterface = () => (
     }}
     className="w-full bg-red-600 text-white py-2 rounded-lg text-sm"
   >
-    Clear Active Session (Debug)
+    Clear Active Session 
   </button>
 )}
 
@@ -1763,23 +1756,33 @@ return (
       {currentView === 'manager' && renderManagerInterface()}
       {currentView === 'pos' && renderPOSInterface()}
       {currentView === 'session' && (
-        <SessionManagement
-          onCheckOut={() => {
-            setActiveSession(null);
-            setCurrentView('home');
-          }}
-          onViewMenu={() => setCurrentView('menu')}
-        />
+        <div className="max-w-md mx-auto">
+          <div className="mb-4 px-6">
+            <button
+              onClick={() => setCurrentView('home')}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+            >
+              ← Back to Home
+            </button>
+          </div>
+          <SessionManagement
+            onCheckOut={() => {
+              setActiveSession(null);
+              setCurrentView('home');
+            }}
+            onViewMenu={() => setCurrentView('menu')}
+          />
+        </div>
       )}
-      {currentView === 'menu' && selectedRestaurant && activeSession && (
+            {currentView === 'menu' && selectedRestaurant && activeSession && (
         <RestaurantMenu
           restaurant={selectedRestaurant}
           sessionId={activeSession.id}
-          onOrderPlace={(items) => {
-            console.log('Order placed:', items);
-            setCurrentView('session');
+          onOrderPlace={(orderData) => {
+            console.log('Order placed:', orderData);
+            alert(`Order ${orderData.order_number} placed successfully! You can order more items.`);
           }}
-          onBack={() => setCurrentView('session')}
+          onBack={() => setCurrentView('session')} // Goes back to session view
         />
       )}
     </main>
@@ -1809,32 +1812,34 @@ return (
           onClose={() => setShowAuthModal(false)}
           onToggleMode={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
         />
-        )}  {showTransactions && (
-    <TransactionHistoryModal
-      onClose={() => setShowTransactions(false)}
-    />
-  )}
+      )} 
+        
+        {showTransactions && (
+            <TransactionHistoryModal
+              onClose={() => setShowTransactions(false)}
+            />
+        )}
 
-          {showFundWallet && (
-      <FundWalletModal
-        onClose={() => setShowFundWallet(false)}
+        {showFundWallet && (
+          <FundWalletModal
+            onClose={() => setShowFundWallet(false)}
+            onSuccess={() => {
+              setShowFundWallet(false);
+              fetchWalletBalance(); // Refresh balance
+            }}
+          />
+        )}
+
+     {showCreateStaff && (
+      <CreateStaffModal
+        onClose={() => setShowCreateStaff(false)}
         onSuccess={() => {
-          setShowFundWallet(false);
-          fetchWalletBalance(); // Refresh balance
+          setShowCreateStaff(false);
+          // Fetch updated staff list - need to implement this API call
+          fetchManagerData(); // This will refresh all manager data including staff
         }}
       />
     )}
-
-        {showCreateStaff && (
-  <CreateStaffModal
-    onClose={() => setShowCreateStaff(false)}
-    onSuccess={() => {
-      setShowCreateStaff(false);
-      // Fetch updated staff list - need to implement this API call
-      fetchManagerData(); // This will refresh all manager data including staff
-    }}
-  />
-)}
 
 
       {showAddRestaurant && (
@@ -1844,15 +1849,16 @@ return (
         />
       )}
       {selectedQRCode && (
-  <QRCodeModal
-    restaurant={selectedQRCode}
-    onClose={() => setSelectedQRCode(null)}
-  />
-)}
+        <QRCodeModal
+          restaurant={selectedQRCode}
+          onClose={() => setSelectedQRCode(null)}
+        />
+      )}
 
       {showLoyalty && (
         <LoyaltyPoints
           onClose={() => setShowLoyalty(false)}
+  
         />
       )}
     </div>

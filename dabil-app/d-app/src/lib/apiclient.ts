@@ -145,6 +145,10 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     return response;
   }
 
+  async getAdminStats(): Promise<{ totalUsers: number; totalRevenue: number; activeUsers: number }> {
+  return this.makeRequest('/admin/stats');
+}
+
   async getProfile(): Promise<{ user: User }> {
     return this.makeRequest('/auth/profile');
   }

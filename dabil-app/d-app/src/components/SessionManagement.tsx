@@ -93,6 +93,14 @@ export const SessionManagement: React.FC<SessionManagementProps> = ({
 
   return (
     <div className="p-6 max-w-md mx-auto bg-white">
+      <div className="mb-4">
+      <button
+        onClick={() => window.history.back()} // Or pass onBack prop
+        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+      >
+        ← Back
+      </button>
+    </div>
       {/* Active Session Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div className="flex justify-between items-start mb-3">

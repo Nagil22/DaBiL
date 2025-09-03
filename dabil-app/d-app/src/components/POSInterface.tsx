@@ -46,17 +46,17 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
   const [loading, setLoading] = useState(false);
   const [servingOrder, setServingOrder] = useState<string | null>(null);
 
-  const fetchGuests = async () => {
-    setLoading(true);
-    try {
-      const response = await apiService.getCheckedInGuests(restaurantId);
-      setGuests(response.guests);
-    } catch (error: any) {
-      console.error('Failed to fetch guests:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchGuests = async (showLoader = true) => {
+  if (showLoader) setLoading(true);
+  try {
+    const response = await apiService.getCheckedInGuests(restaurantId);
+    setGuests(response.guests);
+  } catch (error: any) {
+    console.error('Failed to fetch guests:', error);
+  } finally {
+    if (showLoader) setLoading(false);
+  }
+};
 
   const fetchGuestOrders = async (sessionId: string) => {
     try {
@@ -112,18 +112,19 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
     }));
   };
 
-  useEffect(() => {
-    fetchGuests();
-    fetchMenuItems();
-    const interval = setInterval(() => {
-      fetchGuests();
-      if (selectedGuest) {
-        fetchGuestOrders(selectedGuest.session_id);
-      }
-    }, 15000); // Refresh every 15 seconds
-    
-    return () => clearInterval(interval);
-  }, [restaurantId]);
+ useEffect(() => {
+  fetchGuests();
+  fetchMenuItems();
+  // Auto-refresh every 30 seconds instead of 15, and remove the loading state
+  const interval = setInterval(() => {
+    fetchGuests(); // Remove loading state from this call
+    if (selectedGuest) {
+      fetchGuestOrders(selectedGuest.session_id);
+    }
+  }, 30000); // Increased to 30 seconds
+  
+  return () => clearInterval(interval);
+}, [restaurantId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -140,7 +141,7 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
                 Restaurant ID: {restaurantId}
               </div>
               <button 
-                onClick={fetchGuests}
+                onClick={() => fetchGuests(true)}
                 disabled={loading}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400"
               >
