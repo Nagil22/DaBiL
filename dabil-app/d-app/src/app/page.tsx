@@ -593,7 +593,29 @@ const renderGuestInterface = () => (
 );
 
   // Admin interface
-  const renderAdminInterface = () => (
+const renderAdminInterface = () => {
+  const [adminStats, setAdminStats] = useState({
+    totalUsers: 0,
+    totalRevenue: 0,
+    activeUsers: 0
+  });
+
+  useEffect(() => {
+    if (currentView === 'admin') {
+      fetchAdminStats();
+    }
+  }, [currentView]);
+
+  const fetchAdminStats = async () => {
+    try {
+      const stats = await apiService.getAdminStats();
+      setAdminStats(stats);
+    } catch (error) {
+      console.error('Failed to fetch admin stats:', error);
+    }
+  };
+
+  return (
     <div className="max-w-6xl mx-auto p-6">
       {/* Back button */}
       <div className="mb-4">
@@ -626,14 +648,15 @@ const renderGuestInterface = () => (
           </div>
           <div className="bg-green-50 p-4 rounded-xl">
             <h3 className="font-semibold text-green-900 mb-2">Active Users</h3>
-            <p className="text-2xl font-bold text-green-700">0</p>
+            <p className="text-2xl font-bold text-green-700">{adminStats.activeUsers}</p>
           </div>
           <div className="bg-yellow-50 p-4 rounded-xl">
             <h3 className="font-semibold text-yellow-900 mb-2">Total Revenue</h3>
-            <p className="text-2xl font-bold text-yellow-700">₦0</p>
+            <p className="text-2xl font-bold text-yellow-700">₦{adminStats.totalRevenue.toLocaleString()}</p>
           </div>
         </div>
 
+        {/* Rest of restaurants section */}
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Restaurants</h3>
           <div className="grid gap-4">
@@ -658,8 +681,18 @@ const renderGuestInterface = () => (
                       >
                         View QR
                       </button>
-                      <button className="text-green-600 hover:text-green-800 text-sm">Edit</button>
-                      <button className="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                      <button 
+                        onClick={() => handleEditRestaurant(restaurant)}
+                        className="text-green-600 hover:text-green-800 text-sm bg-green-50 px-3 py-1 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteRestaurant(restaurant.id)}
+                        className="text-red-600 hover:text-red-800 text-sm bg-red-50 px-3 py-1 rounded"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -670,7 +703,7 @@ const renderGuestInterface = () => (
       </div>
     </div>
   );
-
+};
 const renderManagerInterface = () => { 
 
   return (
@@ -1564,7 +1597,6 @@ const QRCodeModal: React.FC<{ restaurant: any; onClose: () => void }> = ({ resta
   </div>
 );
 
-
 const TransactionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1743,6 +1775,24 @@ const TransactionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose })
       </div>
     </div>
   );
+};
+
+const handleEditRestaurant = (restaurant: any) => {
+  // For now, just show restaurant details
+  alert(`Edit functionality not implemented yet. Restaurant: ${restaurant.name}`);
+};
+
+const handleDeleteRestaurant = async (restaurantId: string) => {
+  if (confirm('Are you sure you want to delete this restaurant? This action cannot be undone.')) {
+    try {
+      // You'll need to add this endpoint to your backend
+      await apiService.deleteRestaurant(restaurantId);
+      alert('Restaurant deleted successfully');
+      fetchRestaurants(); // Refresh the list
+    } catch (error: any) {
+      alert(`Failed to delete restaurant: ${error.message}`);
+    }
+  }
 };
 
   // Main render

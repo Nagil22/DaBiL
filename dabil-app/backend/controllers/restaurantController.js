@@ -243,3 +243,31 @@ exports.addMenuItem = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.deleteRestaurant = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { id } = req.params;
+    
+    // Check if restaurant exists
+    const restaurantResult = await pool.query(
+      'SELECT id, name FROM restaurants WHERE id = $1',
+      [id]
+    );
+    
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    // Delete the restaurant (this will cascade to related records)
+    await pool.query('DELETE FROM restaurants WHERE id = $1', [id]);
+    
+    res.json({ 
+      message: `Restaurant "${restaurantResult.rows[0].name}" deleted successfully` 
+    });
+  } catch (error) {
+    console.error('Delete restaurant error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};

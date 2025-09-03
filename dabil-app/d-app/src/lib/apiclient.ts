@@ -199,6 +199,12 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     return this.makeRequest(`/restaurants/${id}`);
   }
 
+  async deleteRestaurant(restaurantId: string): Promise<{ message: string }> {
+  return this.makeRequest(`/restaurants/${restaurantId}`, {
+    method: 'DELETE',
+  });
+}
+
   async addMyMenuItem(data: {
     name: string;
     description: string;
