@@ -214,15 +214,29 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
                         </div>
                         
                         <div className="text-right">
-                          <div className="text-lg font-bold text-gray-900">
-                            {guest.order_count} orders
-                          </div>
-                          {guest.pending_orders > 0 && (
-                            <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
-                              {guest.pending_orders} pending
-                            </div>
-                          )}
-                        </div>
+  <div className="text-lg font-bold text-gray-900">
+    {guest.order_count} orders
+  </div>
+  {guest.pending_orders > 0 && (
+    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
+      {guest.pending_orders} pending
+    </div>
+  )}
+  <button
+    onClick={async () => {
+      try {
+        await apiService.checkOut(guest.session_id);
+        alert(`${guest.guest_name} checked out successfully!`);
+        fetchGuests(); // Refresh the guest list
+      } catch (error: any) {
+        alert(`Failed to check out: ${error.message}`);
+      }
+    }}
+    className="mt-2 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+  >
+    Force Check Out
+  </button>
+</div>
                       </div>
                     </div>
                   ))}
