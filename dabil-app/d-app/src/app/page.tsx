@@ -54,6 +54,11 @@ export default function DabilApp() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [selectedQRCode, setSelectedQRCode] = useState<any>(null);
+  const [adminStats, setAdminStats] = useState({
+    totalUsers: 0,
+    totalRevenue: 0,
+    activeUsers: 0
+  });
  
 
   // Initialize app
@@ -147,6 +152,23 @@ useEffect(() => {
     fetchManagerData();
   }
 }, [user, currentView]);
+
+ useEffect(() => {
+    if (currentView === 'admin') {
+      fetchAdminStats();
+    }
+  }, [currentView]);
+
+    const fetchAdminStats = async () => {
+    try {
+      const stats = await apiService.getAdminStats();
+      setAdminStats(stats);
+    } catch (error) {
+      console.error('Failed to fetch admin stats:', error);
+    }
+  };
+
+
 
 // Update the QR check-in handler
 const handleQRCheckIn = async (restaurantId: string) => {
@@ -594,26 +616,9 @@ const renderGuestInterface = () => (
 
   // Admin interface
 const renderAdminInterface = () => {
-  const [adminStats, setAdminStats] = useState({
-    totalUsers: 0,
-    totalRevenue: 0,
-    activeUsers: 0
-  });
+  
 
-  useEffect(() => {
-    if (currentView === 'admin') {
-      fetchAdminStats();
-    }
-  }, [currentView]);
-
-  const fetchAdminStats = async () => {
-    try {
-      const stats = await apiService.getAdminStats();
-      setAdminStats(stats);
-    } catch (error) {
-      console.error('Failed to fetch admin stats:', error);
-    }
-  };
+ 
 
   return (
     <div className="max-w-6xl mx-auto p-6">
