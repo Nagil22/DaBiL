@@ -543,6 +543,22 @@ const renderGuestInterface = () => (
         <span className="text-xl">📱</span>
         <span>Scan Restaurant QR</span>
       </button>
+      {user && user.role === 'user' && (
+  <button
+    onClick={async () => {
+      try {
+        const activeSession = await apiService.getActiveSession();
+        await apiService.checkOut(activeSession.session.id);
+        alert('Session cleared! You can now check in again.');
+      } catch (error) {
+        alert('No active session to clear or error occurred');
+      }
+    }}
+    className="w-full bg-red-600 text-white py-2 rounded-lg text-sm"
+  >
+    Clear Active Session (Debug)
+  </button>
+)}
 
       {user && user.role === 'user' && (
         <>
