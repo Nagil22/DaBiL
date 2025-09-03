@@ -25,59 +25,67 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
     });
   }, []);
 
-  const startCamera = async () => {
-    try {
-      setError('');
-      setScanning(true);
-      
-      if (!videoRef.current) {
-        throw new Error('Video element not found');
-      }
-
-      if (!hasCamera) {
-        throw new Error('No camera available');
-      }
-
-      // Stop any existing scanner
-      if (scannerRef.current) {
-        scannerRef.current.stop();
-        scannerRef.current.destroy();
-      }
-      
-      scannerRef.current = new QrScanner(
-        videoRef.current,
-        (result) => {
-          console.log('QR scan result:', result.data);
-          processQRResult(result.data);
-        },
-        {
-          onDecodeError: (error) => {
-            // Silently ignore decode errors to keep scanning
-            console.log('Decode error (continuing):', error);
-          },
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-        }
-      );
-      
-      await scannerRef.current.start();
-      console.log('Camera started successfully');
-      
-    } catch (err: any) {
-      console.error('Camera start error:', err);
-      setScanning(false);
-      
-      if (err.name === 'NotAllowedError' || err.message.includes('permission')) {
-        setError('Camera permission denied. Please allow camera access and refresh the page.');
-      } else if (err.name === 'NotFoundError') {
-        setError('No camera found. Please ensure your device has a camera.');
-      } else if (err.name === 'NotSupportedError') {
-        setError('Camera not supported on this browser. Try Chrome or Safari.');
-      } else {
-        setError(`Camera error: ${err.message}. Try refreshing the page.`);
-      }
+ const startCamera = async () => {
+  try {
+    setError('');
+    setScanning(true);
+    
+    // Wait for video element to be available
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    if (!videoRef.current) {
+      throw new Error('Video element not ready. Please try again.');
     }
-  };
+
+    if (!hasCamera) {
+      throw new Error('No camera available');
+    }
+
+    // Stop any existing scanner
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current.destroy();
+      scannerRef.current = null;
+    }
+    
+    // Create new scanner instance
+    scannerRef.current = new QrScanner(
+      videoRef.current,
+      (result) => {
+        console.log('QR scan result:', result.data);
+        processQRResult(result.data);
+      },
+      {
+        onDecodeError: (error) => {
+          // Silently ignore decode errors to keep scanning
+          console.log('Decode error (continuing):', error);
+        },
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        preferredCamera: 'environment', // Use back camera on mobile
+      }
+    );
+    
+    await scannerRef.current.start();
+    console.log('Camera started successfully');
+    
+  } catch (err: any) {
+    console.error('Camera start error:', err);
+    setScanning(false);
+    
+    if (err.name === 'NotAllowedError' || err.message.includes('permission')) {
+      setError('Camera permission denied. Please allow camera access and try again.');
+    } else if (err.name === 'NotFoundError') {
+      setError('No camera found. Please ensure your device has a camera.');
+    } else if (err.name === 'NotSupportedError') {
+      setError('Camera not supported on this browser. Try Chrome or Safari.');
+    } else if (err.message.includes('Video element not ready')) {
+      setError('Camera initializing... Please try the "Start Camera" button again.');
+    } else {
+      setError(`Camera error: ${err.message}. Try refreshing the page.`);
+    }
+  }
+};
 
   const stopCamera = () => {
     if (scannerRef.current) {
