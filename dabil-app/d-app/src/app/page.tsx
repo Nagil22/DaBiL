@@ -156,19 +156,23 @@ const handleQRCheckIn = async (restaurantId: string) => {
 
   try {
     setLoading(true);
+    console.log('Starting QR check-in for restaurant:', restaurantId);
     
     // Get restaurant details first
     const restaurantResponse = await apiService.getRestaurant(restaurantId);
     const restaurant = restaurantResponse.restaurant;
+    console.log('Got restaurant details:', restaurant.name);
     
     // Try to create new session first
     try {
+      console.log('Attempting to create new session...');
       const response = await apiService.checkIn({ 
         restaurantId: restaurantId,
         tableNumber: undefined,
         partySize: 1
       });
       
+      console.log('New session created:', response.session);
       setActiveSession(response.session);
       setSelectedRestaurant(restaurant);
       setCurrentView('menu');
@@ -176,10 +180,15 @@ const handleQRCheckIn = async (restaurantId: string) => {
       alert(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}`);
       
     } catch (checkInError: any) {
+      console.log('Check-in failed:', checkInError.message);
+      
       // If check-in fails due to existing session, get the active session
       if (checkInError.message.includes('already have an active session')) {
+        console.log('Existing session detected, fetching active session...');
+        
         try {
           const activeSessionResponse = await apiService.getActiveSession();
+          console.log('Got active session:', activeSessionResponse.session);
           
           setActiveSession(activeSessionResponse.session);
           setSelectedRestaurant(restaurant);
@@ -188,15 +197,17 @@ const handleQRCheckIn = async (restaurantId: string) => {
           alert(`Welcome back to ${restaurant.name}! Continuing your existing session.`);
           
         } catch (sessionError: any) {
+          console.log('Failed to get active session:', sessionError.message);
           throw new Error('Could not retrieve your active session. Please contact support.');
         }
       } else {
+        console.log('Different error, throwing:', checkInError.message);
         throw checkInError;
       }
     }
     
   } catch (error: any) {
-    console.error('Check-in error:', error);
+    console.error('Final catch - Check-in error:', error);
     alert(error.message || 'Check-in failed. Please try again.');
   } finally {
     setLoading(false);
