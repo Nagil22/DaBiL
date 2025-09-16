@@ -1,6 +1,7 @@
 // Update the POSInterface.tsx to handle the complete order serving flow
 import React, { useState, useEffect } from 'react';
 import apiService from '../lib/apiclient';
+import { LuxuryMenuSelector } from './LuxuryMenu';
 
 interface Guest {
   session_id: string;
@@ -45,6 +46,31 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
   const [menuItems, setMenuItems] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [servingOrder, setServingOrder] = useState<string | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [restaurantQRCode, setRestaurantQRCode] = useState<string | null>(null);
+  const [showLuxuryMenu, setShowLuxuryMenu] = useState(false);
+  const [selectedGuestForMenu, setSelectedGuestForMenu] = useState<Guest | null>(null);
+  const [restaurantType, setRestaurantType] = useState<string>('');
+
+
+
+const fetchRestaurantQR = async () => {
+  try {
+    const response = await apiService.getRestaurant(restaurantId);
+    setRestaurantQRCode(response.restaurant.qr_code);
+  } catch (error: any) {
+    console.error('Failed to fetch restaurant QR:', error);
+  }
+};
+
+const fetchRestaurantDetails = async () => {
+  try {
+    const response = await apiService.getRestaurant(restaurantId);
+    setRestaurantType(response.restaurant.restaurant_type);
+  } catch (error: any) {
+    console.error('Failed to fetch restaurant details:', error);
+  }
+};
 
 const fetchGuests = async (showLoader = true) => {
   if (showLoader) setLoading(true);
@@ -80,29 +106,83 @@ const fetchGuests = async (showLoader = true) => {
     }
   };
 
-  const handleGuestSelect = (guest: Guest) => {
-    setSelectedGuest(guest);
+ const handleGuestSelect = (guest: Guest) => {
+  setSelectedGuest(guest);
+  
+  // For luxury restaurants, show menu selector instead of orders
+  if (restaurantType === 'Luxury') {
+    setSelectedGuestForMenu(guest);
+    setShowLuxuryMenu(true);
+  } else {
     fetchGuestOrders(guest.session_id);
-  };
+  }
+};
+
 
   const handleServeOrder = async (orderId: string) => {
-    try {
-      setServingOrder(orderId);
-      await onServeOrder(orderId);
+  try {
+    setServingOrder(orderId);
+    
+    // Step 1: Notify user that order is ready for payment
+    const response = await apiService.requestPaymentConfirmation(orderId);
+    
+    if (response.success) {
+      // Show waiting state for waiter
+      alert('Payment request sent to customer. Waiting for confirmation...');
       
-      // Refresh data after serving
-      fetchGuests();
-      if (selectedGuest) {
-        fetchGuestOrders(selectedGuest.session_id);
+      // Start polling for payment confirmation
+      pollForPaymentConfirmation(orderId);
+    }
+    
+  } catch (error: any) {
+    alert(`Failed to request payment: ${error.message}`);
+    setServingOrder(null);
+  }
+};
+
+// Add this new function for polling payment status:
+const pollForPaymentConfirmation = (orderId: string) => {
+  const pollInterval = setInterval(async () => {
+    try {
+      const status = await apiService.checkPaymentStatus(orderId);
+      
+      if (status.confirmed) {
+        clearInterval(pollInterval);
+        
+        // Process the actual payment
+        await apiService.serveOrder(orderId);
+        
+        // Refresh data after serving
+        fetchGuests();
+        if (selectedGuest) {
+          fetchGuestOrders(selectedGuest.session_id);
+        }
+        
+        alert('Payment confirmed and processed! Order served successfully.');
+        setServingOrder(null);
+        
+      } else if (status.declined) {
+        clearInterval(pollInterval);
+        alert('Payment was declined by customer.');
+        setServingOrder(null);
       }
       
-      alert('Order served successfully! Payment has been processed.');
     } catch (error: any) {
-      alert(`Failed to serve order: ${error.message}`);
-    } finally {
+      clearInterval(pollInterval);
+      console.error('Payment polling error:', error);
       setServingOrder(null);
     }
-  };
+  }, 2000); // Poll every 2 seconds
+  
+  // Stop polling after 2 minutes
+  setTimeout(() => {
+    clearInterval(pollInterval);
+    if (servingOrder === orderId) {
+      alert('Payment confirmation timeout. Please try again.');
+      setServingOrder(null);
+    }
+  }, 120000);
+};
 
   const getOrderItemDetails = (order: Order) => {
     return order.items.map(item => ({
@@ -111,6 +191,59 @@ const fetchGuests = async (showLoader = true) => {
       price: menuItems[item.menuItemId]?.price || 0
     }));
   };
+
+  const QRCodeModal = () => (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl p-6 w-full max-w-md">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-bold text-gray-900">Restaurant QR Code</h3>
+        <button 
+          onClick={() => setShowQRModal(false)}
+          className="text-gray-500 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
+        >
+          ✕
+        </button>
+      </div>
+      
+      <div className="text-center">
+        {restaurantQRCode ? (
+          <>
+            <img 
+              src={restaurantQRCode} 
+              alt="Restaurant QR Code" 
+              className="w-64 h-64 mx-auto border border-gray-200 rounded-lg"
+            />
+            <p className="text-sm text-gray-600 mt-4">
+              Show this QR code to customers for check-in
+            </p>
+          </>
+        ) : (
+          <div className="w-64 h-64 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-gray-500 text-sm">Loading QR Code...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const handleLuxuryOrderPlace = async (orderData: any) => {
+  try {
+    // Refresh guests and orders after luxury order is placed
+    fetchGuests();
+    if (selectedGuest) {
+      fetchGuestOrders(selectedGuest.session_id);
+    }
+    
+    alert(`Order placed for ${selectedGuestForMenu?.guest_name}! Order #${orderData.order_number}`);
+  } catch (error: any) {
+    console.error('Error after luxury order:', error);
+  }
+};
+
 
  useEffect(() => {
   fetchGuests();
@@ -125,6 +258,16 @@ const fetchGuests = async (showLoader = true) => {
   
   return () => clearInterval(interval);
 }, [restaurantId]);
+
+
+useEffect(() => {
+  fetchRestaurantQR();
+}, [restaurantId]);
+
+useEffect(() => {
+  fetchRestaurantDetails();
+}, [restaurantId]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -319,21 +462,22 @@ const fetchGuests = async (showLoader = true) => {
                             </div>
                           )}
 
+                         
                           {order.status === 'pending' && (
                             <button
                               onClick={() => handleServeOrder(order.id)}
                               disabled={servingOrder === order.id}
-                              className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                              className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:bg-gray-400 flex items-center justify-center"
                             >
                               {servingOrder === order.id ? (
                                 <span className="flex items-center">
                                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                                  Processing...
+                                  Waiting for Customer Confirmation...
                                 </span>
                               ) : (
                                 <>
-                                  <span className="mr-2">✅</span>
-                                  Mark as Served & Process Payment
+                                  <span className="mr-2">💳</span>
+                                  Request Payment from Customer
                                 </>
                               )}
                             </button>
@@ -354,6 +498,30 @@ const fetchGuests = async (showLoader = true) => {
               )}
             </div>
           </div>
+
+          {/* Floating QR Button */}
+          <button
+            onClick={() => setShowQRModal(true)}
+            className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-full shadow-lg transition-all duration-200 hover:scale-105 z-40 font-medium"
+          >
+            QR
+          </button>
+
+          {/* QR Modal */}
+          {showQRModal && <QRCodeModal />}
+           {/* Luxury Menu Selector */}
+          {showLuxuryMenu && selectedGuestForMenu && (
+            <LuxuryMenuSelector
+              guest={selectedGuestForMenu}
+              restaurantId={restaurantId}
+              onClose={() => {
+                setShowLuxuryMenu(false);
+                setSelectedGuestForMenu(null);
+              }}
+              onOrderPlace={handleLuxuryOrderPlace}
+            />
+          )}
+    
         </div>
       </div>
     </div>

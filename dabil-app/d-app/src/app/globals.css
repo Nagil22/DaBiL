@@ -277,3 +277,111 @@
     min-height: 44px;
   }
 }
+
+/* Enhanced mobile responsiveness - add to your existing globals.css */
+@media (max-width: 768px) {
+  /* Admin Dashboard responsive */
+  .admin-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+  
+  .admin-restaurant-card {
+    padding: 1rem;
+  }
+  
+  .admin-restaurant-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  
+  .admin-restaurant-actions button {
+    width: 100%;
+  }
+  
+  /* Manager Dashboard responsive */
+  .manager-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  
+  .manager-header-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* Restaurant Menu responsive */
+  .menu-category-sticky {
+    position: sticky;
+    top: 4rem;
+    background: rgb(249 250 251);
+    z-index: 10;
+  }
+  
+  /* Session Management responsive */
+  .session-card {
+    margin: 0 1rem;
+  }
+  
+  /* QR Scanner responsive */
+  .qr-scanner-modal {
+    margin: 0.5rem;
+    max-height: 95vh;
+  }
+  
+  .qr-scanner-video {
+    height: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .manager-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .admin-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Stack action buttons vertically */
+  .button-group-mobile {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  
+  .button-group-mobile > * {
+    width: 100% !important;
+  }
+}
+/* Add to globals.css */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}

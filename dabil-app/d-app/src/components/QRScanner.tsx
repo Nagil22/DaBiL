@@ -87,7 +87,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
   }
 };
 
-  const stopCamera = () => {
+const stopCamera = () => {
     if (scannerRef.current) {
       scannerRef.current.stop();
       scannerRef.current.destroy();
@@ -96,7 +96,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
     setScanning(false);
   };
 
-  const processQRResult = (result: string) => {
+const processQRResult = (result: string) => {
   console.log('Processing QR result:', result);
   setScanResult(result);
   
@@ -127,17 +127,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose }) => {
     }
     
     console.log('About to call onScan with restaurant ID:', restaurantId);
+    
+    // FIXED: Stop camera and close scanner immediately
     stopCamera();
+    
+    // Call onScan and let parent handle the rest
     onScan(restaurantId);
     
   } catch (error) {
     console.error('QR processing error:', error);
+    setScanResult(''); // Clear the success message
     setError('Invalid QR code. Please try scanning again or enter restaurant ID manually.');
-    setScanResult('');
   }
 };
 
-  const handleManualInput = () => {
+const handleManualInput = () => {
     const input = prompt('Enter restaurant ID (UUID format):');
     if (input) {
       if (input.match(/^[a-f0-9-]{36}$/i)) {

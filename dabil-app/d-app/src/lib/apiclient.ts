@@ -1,5 +1,5 @@
 // Complete API Service with email/password authentication
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dabil-api.loca.lt/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5004/api';
 
 // Types
 interface User {
@@ -340,6 +340,28 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
       body: JSON.stringify(data),
     });
   }
+
+  async requestPaymentConfirmation(orderId: string): Promise<any> {
+  return this.makeRequest(`/orders/${orderId}/request-payment`, {
+    method: 'POST',
+  });
+}
+
+async checkPaymentStatus(orderId: string): Promise<any> {
+  return this.makeRequest(`/orders/${orderId}/payment-status`);
+}
+
+async confirmPayment(orderId: string): Promise<any> {
+  return this.makeRequest(`/orders/${orderId}/confirm-payment`, {
+    method: 'POST',
+  });
+}
+
+async declinePayment(orderId: string): Promise<any> {
+  return this.makeRequest(`/orders/${orderId}/decline-payment`, {
+    method: 'POST',
+  });
+}
 
   // Restaurant Manager Methods
   async getMyRestaurant(): Promise<{ restaurant: any }> {

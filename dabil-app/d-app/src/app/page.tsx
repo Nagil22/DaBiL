@@ -9,6 +9,8 @@ import { POSInterface } from '../components/POSInterface';
 import { LoyaltyPoints } from '../components/LoyaltyPoints';
 import { Receipt } from '../components/Receipt';
 import apiService from '../lib/apiclient';
+import { PaymentConfirmation } from '@/components/Paymentconfim';
+import { useNotifications } from '../components/NotificationSystem';
 
 // Brand colors extracted from logo
 const brandColors = {
@@ -59,7 +61,9 @@ export default function DabilApp() {
     totalRevenue: 0,
     activeUsers: 0
   });
- 
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const [paymentOrderData, setPaymentOrderData] = useState<any>(null);
+  const { showToast, showModal, success, error, warning, info, confirm } = useNotifications();
 
   // Initialize app
 useEffect(() => {
@@ -112,7 +116,7 @@ useEffect(() => {
     // Verify payment
     verifyPayment(reference);
   } else if (reference && status === 'cancelled') {
-    alert('Payment was cancelled');
+    success('Payment was cancelled');
     // Clean up URL
     window.history.replaceState({}, document.title, window.location.pathname);
   }
@@ -159,7 +163,7 @@ useEffect(() => {
     }
   }, [currentView]);
 
-    const fetchAdminStats = async () => {
+  const fetchAdminStats = async () => {
     try {
       const stats = await apiService.getAdminStats();
       setAdminStats(stats);
@@ -168,42 +172,37 @@ useEffect(() => {
     }
   };
 
-
-
-// Update the QR check-in handler
 const handleQRCheckIn = async (restaurantId: string) => {
-   alert(`DEBUG: handleQRCheckIn called with ${restaurantId}`);
   if (!user) {
-    alert('Please log in first');
+    setShowAuthModal(true);
     return;
   }
 
   try {
     setLoading(true);
     
+    // Get restaurant details first to check if it's luxury
+    const restaurantResponse = await apiService.getRestaurant(restaurantId);
+    const restaurant = restaurantResponse.restaurant;
+    
     // Check if user already has an active session
     try {
       const activeSessionResponse = await apiService.getActiveSession();
       if (activeSessionResponse.session) {
-        // User has active session, get restaurant details and go to menu
-        const restaurantResponse = await apiService.getRestaurant(restaurantId);
-        const restaurant = restaurantResponse.restaurant;
-        
         setActiveSession(activeSessionResponse.session);
         setSelectedRestaurant(restaurant);
-        setCurrentView('menu'); // Go directly to menu instead of session
         
-        alert(`Welcome back to ${restaurant.name}! Continuing your session.`);
+        // For luxury restaurants, go to home; for others, go to menu
+        setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
+        
+        setTimeout(() => {
+          success(`Welcome back to ${restaurant.name}! Continuing your session.`);
+        }, 100);
         return;
       }
     } catch (error) {
-      // No active session found, proceed with new check-in
       console.log('No active session found, creating new one');
     }
-    
-    // Get restaurant details first
-    const restaurantResponse = await apiService.getRestaurant(restaurantId);
-    const restaurant = restaurantResponse.restaurant;
     
     // Create new session
     const response = await apiService.checkIn({ 
@@ -214,13 +213,17 @@ const handleQRCheckIn = async (restaurantId: string) => {
     
     setActiveSession(response.session);
     setSelectedRestaurant(restaurant);
-    setCurrentView('menu'); // Go directly to menu for new sessions too
     
-    alert(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}`);
+    // For luxury restaurants, go to home; for others, go to menu
+    setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
+    
+    setTimeout(() => {
+      const destination = restaurant.restaurant_type === 'Luxury' ? 'Stay on home screen - a waiter will assist you' : 'You can now browse the menu and place orders';
+      success(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}. ${destination}`);
+    }, 100);
     
   } catch (error: any) {
     if (error.message.includes('already have an active session')) {
-      // Handle the duplicate session case
       try {
         const restaurantResponse = await apiService.getRestaurant(restaurantId);
         const restaurant = restaurantResponse.restaurant;
@@ -228,14 +231,16 @@ const handleQRCheckIn = async (restaurantId: string) => {
         
         setActiveSession(activeSessionResponse.session);
         setSelectedRestaurant(restaurant);
-        setCurrentView('menu');
+        setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
         
-        alert(`You already have an active session at ${restaurant.name}. Taking you to the menu.`);
+        setTimeout(() => {
+          success(`You already have an active session at ${restaurant.name}. Taking you to the ${restaurant.restaurant_type === 'Luxury' ? 'home screen' : 'menu'}.`);
+        }, 100);
       } catch (secondError: any) {
-        alert('Session error. Please try again or contact support.');
+        success('Session error. Please try again or contact support.');
       }
     } else {
-      alert(error.message || 'Check-in failed. Please try again.');
+      success(error.message || 'Check-in failed. Please try again.');
     }
   } finally {
     setLoading(false);
@@ -253,15 +258,15 @@ const verifyPayment = async (reference: string) => {
       setWalletBalance(response.newBalance);
       
       // Show success message without loyalty points
-      alert(`Payment successful! ₦${response.amount.toLocaleString()} added to your wallet.`);
+      success(`Payment successful! ₦${response.amount.toLocaleString()} added to your wallet.`);
       
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
-      alert('Payment verification failed. Please contact support if money was debited.');
+      success('Payment verification failed. Please contact support if money was debited.');
     }
   } catch (error: any) {
-    alert(`Payment verification failed: ${error.message}`);
+    success(`Payment verification failed: ${error.message}`);
   } finally {
     setLoading(false);
   }
@@ -388,9 +393,9 @@ const verifyPayment = async (reference: string) => {
     }
     
     setShowAuthModal(false);
-    alert(`${authMode === 'login' ? 'Login' : 'Account creation'} successful!`);
+    success(`${authMode === 'login' ? 'Login' : 'Account creation'} successful!`);
   } catch (error: any) {
-    alert(error.message || 'Authentication failed');
+    success(error.message || 'Authentication failed');
   } finally {
     setLoading(false);
   }
@@ -406,28 +411,18 @@ const verifyPayment = async (reference: string) => {
   };
 
   // QR Scanner handler
-  const handleQRScan = async (restaurantId: string) => {
-    if (!user) {
-      setShowAuthModal(true);
-      setShowQRScanner(false);
-      return;
-    }
+ const handleQRScan = async (restaurantId: string) => {
+  // Close QR scanner immediately
+  setShowQRScanner(false);
+  
+  if (!user) {
+    setShowAuthModal(true);
+    return;
+  }
 
-    try {
-      const response = await apiService.checkIn({ 
-        restaurantId: restaurantId || '',
-        tableNumber: 1,
-        partySize: 1
-      });
-      setActiveSession(response.session);
-      setSelectedRestaurant(response.restaurant);
-      setCurrentView('session');
-      setShowQRScanner(false);
-      alert('Checked in successfully!');
-    } catch (error: any) {
-      alert(error.message || 'Check-in failed');
-    }
-  };
+  // Call the check-in handler
+  await handleQRCheckIn(restaurantId);
+};
 
   // Role-based header
   const renderHeader = () => {
@@ -521,9 +516,7 @@ const verifyPayment = async (reference: string) => {
       </div>
     );
   };
-
-  // Guest interface (for regular users)
-// Update the renderGuestInterface function in page.tsx
+  // Guest interface
 const renderGuestInterface = () => (
   <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6">
     <div className="text-center mb-8">
@@ -570,9 +563,9 @@ const renderGuestInterface = () => (
       try {
         const activeSession = await apiService.getActiveSession();
         await apiService.checkOut(activeSession.session.id);
-        alert('Session cleared! You can now check in again.');
+        success('Session cleared! You can now check in again.');
       } catch (error) {
-        alert('No active session to clear or error occurred');
+        success('No active session to clear or error occurred');
       }
     }}
     className="w-full bg-red-600 text-white py-2 rounded-lg text-sm"
@@ -584,11 +577,39 @@ const renderGuestInterface = () => (
       {user && user.role === 'user' && (
         <>
           <button
-            onClick={() => setCurrentView('session')}
-            className="w-full border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-blue-300 hover:text-blue-700 transition-colors flex items-center justify-center space-x-2"
+            onClick={async () => {
+              try {
+                setLoading(true);
+                const activeSessionResponse = await apiService.getActiveSession();
+                
+                if (activeSessionResponse.session) {
+                  // Get restaurant details
+                  const restaurantResponse = await apiService.getRestaurant(activeSessionResponse.session.restaurant_id || selectedRestaurant?.id);
+                  
+                  // Set session and restaurant data
+                  setActiveSession(activeSessionResponse.session);
+                  setSelectedRestaurant(restaurantResponse.restaurant);
+                  
+                  // Go directly to menu
+                  setCurrentView('menu');
+                } else {
+                  success('No active session found. Please scan a restaurant QR code to get started.');
+                }
+              } catch (error: any) {
+                if (error.message.includes('not found')) {
+                  success('No active session found. Please scan a restaurant QR code to get started.');
+                } else {
+                  success('Failed to load active session. Please try again.');
+                }
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="w-full border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-blue-300 hover:text-blue-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             <span>🍽️</span>
-            <span>View Active Session</span>
+            <span>{loading ? 'Loading...' : 'View Active Session'}</span>
           </button>
 
           <div className="grid grid-cols-2 gap-3">
@@ -617,20 +638,8 @@ const renderGuestInterface = () => (
   // Admin interface
 const renderAdminInterface = () => {
   
-
- 
-
   return (
     <div className="max-w-6xl mx-auto p-6">
-      {/* Back button */}
-      <div className="mb-4">
-        <button
-          onClick={() => setCurrentView('home')}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
-        >
-          ← Back to Home
-        </button>
-      </div>
       
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
@@ -713,15 +722,7 @@ const renderManagerInterface = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      {/* Back button */}
-      <div className="mb-4">
-        <button
-          onClick={() => setCurrentView('home')}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
-        >
-          ← Back to Home
-        </button>
-      </div>
+    
       
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         {/* Header with restaurant name */}
@@ -1021,9 +1022,9 @@ const renderManagerInterface = () => {
         onServeOrder={async (orderId: string) => {
           try {
             await apiService.serveOrder(orderId);
-            alert('Order served and payment processed!');
+            success('Order served and payment processed!');
           } catch (error: any) {
-            alert(error.message || 'Failed to process order');
+            success(error.message || 'Failed to process order');
           }
         }}
       />
@@ -1050,11 +1051,11 @@ const renderManagerInterface = () => {
     
     try {
       await apiService.createRestaurant(formData);
-      alert('Restaurant and owner account created successfully!');
+      success('Restaurant and owner account created successfully!');
       onSuccess();
       onClose();
     } catch (error: any) {
-      alert(`Failed to create restaurant: ${error.message}`);
+      success(`Failed to create restaurant: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -1198,11 +1199,11 @@ const renderManagerInterface = () => {
     
     try {
       await apiService.createMyStaff(formData);
-      alert('Staff member created successfully!');
+      success('Staff member created successfully!');
       onSuccess();
       onClose();
     } catch (error: any) {
-      alert(`Failed to create staff: ${error.message}`);
+      success(`Failed to create staff: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -1311,11 +1312,11 @@ const handleSubmit = async (e: React.FormEvent) => {
       price: parseFloat(formData.price)
     });
     
-    alert('Menu item added successfully!');
+    success('Menu item added successfully!');
     onSuccess();
     onClose();
   } catch (error: any) {
-    alert(`Failed to add menu item: ${error.message}`);
+    success(`Failed to add menu item: ${error.message}`);
   } finally {
     setLoading(false);
   }
@@ -1421,13 +1422,13 @@ const handleSubmit = async (e: React.FormEvent) => {
     
     // Validate amount
     if (!fundAmount || fundAmount < 100) {
-      alert('Minimum funding amount is ₦100');
+      success('Minimum funding amount is ₦100');
       setLoading(false);
       return;
     }
     
     if (fundAmount > 500000) {
-      alert('Maximum funding amount is ₦500,000');
+      success('Maximum funding amount is ₦500,000');
       setLoading(false);
       return;
     }
@@ -1435,7 +1436,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     // Get user email from current user
     const currentUser = apiService.getCurrentUser();
     if (!currentUser?.email) {
-      alert('User email not found. Please log in again.');
+      success('User email not found. Please log in again.');
       setLoading(false);
       return;
     }
@@ -1451,7 +1452,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     window.location.href = response.authorization_url;
     
   } catch (error: any) {
-    alert(`Failed to initialize payment: ${error.message}`);
+    success(`Failed to initialize payment: ${error.message}`);
   } finally {
     setLoading(false);
   }
@@ -1618,7 +1619,7 @@ const TransactionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose })
       setTransactions(response.transactions);
     } catch (error: any) {
       console.error('Failed to fetch transactions:', error);
-      alert('Failed to load transaction history');
+      success('Failed to load transaction history');
     } finally {
       setLoading(false);
     }
@@ -1784,19 +1785,62 @@ const TransactionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose })
 
 const handleEditRestaurant = (restaurant: any) => {
   // For now, just show restaurant details
-  alert(`Edit functionality not implemented yet. Restaurant: ${restaurant.name}`);
+  success(`Edit functionality not implemented yet. Restaurant: ${restaurant.name}`);
 };
 
 const handleDeleteRestaurant = async (restaurantId: string) => {
-  if (confirm('Are you sure you want to delete this restaurant? This action cannot be undone.')) {
-    try {
-      // You'll need to add this endpoint to your backend
-      await apiService.deleteRestaurant(restaurantId);
-      alert('Restaurant deleted successfully');
-      fetchRestaurants(); // Refresh the list
-    } catch (error: any) {
-      alert(`Failed to delete restaurant: ${error.message}`);
+  confirm(
+    'Are you sure you want to delete this restaurant? This action cannot be undone.',
+    'Delete Restaurant',
+    async () => {
+      try {
+        await apiService.deleteRestaurant(restaurantId);
+        success('Restaurant deleted successfully');
+        fetchRestaurants(); // Refresh the list
+      } catch (error: any) {
+        success(`Failed to delete restaurant: ${error.message}`);
+      }
+    },
+    () => {
+      // Cancelled, do nothing
     }
+  );
+};
+
+const handlePaymentRequest = (orderData: any) => {
+  setPaymentOrderData(orderData);
+  setShowPaymentConfirmation(true);
+};
+
+const handleConfirmPayment = async () => {
+  if (!paymentOrderData) return;
+  
+  try {
+    setLoading(true);
+    await apiService.confirmPayment(paymentOrderData.id);
+    setShowPaymentConfirmation(false);
+    setPaymentOrderData(null);
+    success('Payment confirmed! Your order is being served.');
+  } catch (error: any) {
+    success(`Payment failed: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleDeclinePayment = async () => {
+  if (!paymentOrderData) return;
+  
+  try {
+    setLoading(true);
+    await apiService.declinePayment(paymentOrderData.id);
+    setShowPaymentConfirmation(false);
+    setPaymentOrderData(null);
+    success('Payment declined.');
+  } catch (error: any) {
+    success(`Failed to decline: ${error.message}`);
+  } finally {
+    setLoading(false);
   }
 };
 
@@ -1835,7 +1879,7 @@ return (
           sessionId={activeSession.id}
           onOrderPlace={(orderData) => {
             console.log('Order placed:', orderData);
-            alert(`Order ${orderData.order_number} placed successfully! You can order more items.`);
+            success(`Order ${orderData.order_number} placed successfully! You can order more items.`);
           }}
           onBack={() => setCurrentView('session')} // Goes back to session view
         />
@@ -1914,6 +1958,17 @@ return (
         <LoyaltyPoints
           onClose={() => setShowLoyalty(false)}
   
+        />
+      )}
+      {showPaymentConfirmation && paymentOrderData && (
+        <PaymentConfirmation
+          orderData={paymentOrderData}
+          onConfirm={handleConfirmPayment}
+          onDecline={handleDeclinePayment}
+          onClose={() => {
+            setShowPaymentConfirmation(false);
+            setPaymentOrderData(null);
+          }}
         />
       )}
     </div>
