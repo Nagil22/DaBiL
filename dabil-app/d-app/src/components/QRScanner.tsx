@@ -131,12 +131,15 @@ const processQRResult = (result: string) => {
     // FIXED: Stop camera and close scanner immediately
     stopCamera();
     
-    // Call onScan and let parent handle the rest
+    // Close the scanner modal immediately
+    onClose();
+    
+    // Then call onScan to process the check-in
     onScan(restaurantId);
     
   } catch (error) {
     console.error('QR processing error:', error);
-    setScanResult(''); // Clear the success message
+    setScanResult(''); 
     setError('Invalid QR code. Please try scanning again or enter restaurant ID manually.');
   }
 };
