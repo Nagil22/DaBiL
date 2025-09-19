@@ -204,3 +204,97 @@ async function updateLoyaltyTier(pool, userId) {
     console.error('Failed to update loyalty tier:', error);
   }
 }
+
+exports.requestPaymentConfirmation = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { orderId } = req.params;
+    
+    // Update order status to awaiting_payment
+    await pool.query(
+      'UPDATE orders SET status = $1 WHERE id = $2',
+      ['awaiting_payment', orderId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Payment confirmation requested'
+    });
+  } catch (error) {
+    console.error('Request payment confirmation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.checkPaymentStatus = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { orderId } = req.params;
+    
+    const result = await pool.query(
+      'SELECT status FROM orders WHERE id = $1',
+      [orderId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const status = result.rows[0].status;
+    
+    res.json({
+      confirmed: status === 'payment_confirmed',
+      declined: status === 'payment_declined',
+      pending: status === 'awaiting_payment'
+    });
+  } catch (error) {
+    console.error('Check payment status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.confirmPayment = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { orderId } = req.params;
+    
+    // Update order status to payment_confirmed
+    await pool.query(
+      'UPDATE orders SET status = $1 WHERE id = $2',
+      ['payment_confirmed', orderId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Payment confirmed'
+    });
+  } catch (error) {
+    console.error('Confirm payment error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.declinePayment = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { orderId } = req.params;
+    
+    // Update order status back to pending
+    await pool.query(
+      'UPDATE orders SET status = $1 WHERE id = $2',
+      ['pending', orderId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Payment declined'
+    });
+  } catch (error) {
+    console.error('Decline payment error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
