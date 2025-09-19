@@ -106,14 +106,20 @@ const fetchGuests = async (showLoader = true) => {
     }
   };
 
- const handleGuestSelect = (guest: Guest) => {
+const handleGuestSelect = (guest: Guest) => {
   setSelectedGuest(guest);
   
-  // For luxury restaurants, show menu selector instead of orders
+  // For luxury restaurants, check if guest has existing orders first
   if (restaurantType === 'Luxury') {
-    setSelectedGuestForMenu(guest);
-    setShowLuxuryMenu(true);
+    // First fetch their orders to see if they have any
+    fetchGuestOrders(guest.session_id).then(() => {
+      // If guest has orders, show orders view
+      // If no orders, show menu selector for waiter to place orders
+      setSelectedGuestForMenu(guest);
+      setShowLuxuryMenu(true);
+    });
   } else {
+    // For non-luxury restaurants, always show orders
     fetchGuestOrders(guest.session_id);
   }
 };
@@ -358,6 +364,7 @@ useEffect(() => {
                         </div>
                         
                         <div className="text-right">
+ <div className="text-right">
   <div className="text-lg font-bold text-gray-900">
     {guest.order_count} orders
   </div>
@@ -366,21 +373,43 @@ useEffect(() => {
       {guest.pending_orders} pending
     </div>
   )}
-  <button
-    onClick={async () => {
-      try {
-        await apiService.checkOut(guest.session_id);
-        alert(`${guest.guest_name} checked out successfully!`);
-        fetchGuests(); // Refresh the guest list
-      } catch (error: any) {
-        alert(`Failed to check out: ${error.message}`);
-      }
-    }}
-    className="mt-2 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
-  >
-    Force Check Out
-  </button>
-</div>
+  
+  {/* Add these buttons for luxury restaurants */}
+  {restaurantType === 'Luxury' ? (
+    <div className="mt-2 space-y-1">
+      <button
+        onClick={() => fetchGuestOrders(guest.session_id)}
+        className="w-full bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
+      >
+        View Orders
+      </button>
+      <button
+        onClick={() => {
+          setSelectedGuestForMenu(guest);
+          setShowLuxuryMenu(true);
+        }}
+        className="w-full bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
+      >
+        Place Order
+      </button>
+    </div>
+  ) : (
+    <button
+      onClick={async () => {
+        try {
+          await apiService.checkOut(guest.session_id);
+          alert(`${guest.guest_name} checked out successfully!`);
+          fetchGuests();
+        } catch (error: any) {
+          alert(`Failed to check out: ${error.message}`);
+        }
+      }}
+      className="mt-2 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+    >
+      Force Check Out
+    </button>
+  )}
+</div>>
                       </div>
                     </div>
                   ))}
