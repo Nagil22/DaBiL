@@ -52,37 +52,35 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
   const [selectedGuestForMenu, setSelectedGuestForMenu] = useState<Guest | null>(null);
   const [restaurantType, setRestaurantType] = useState<string>('');
 
+  const fetchRestaurantQR = async () => {
+    try {
+      const response = await apiService.getRestaurant(restaurantId);
+      setRestaurantQRCode(response.restaurant.qr_code);
+    } catch (error: any) {
+      console.error('Failed to fetch restaurant QR:', error);
+    }
+  };
 
+  const fetchRestaurantDetails = async () => {
+    try {
+      const response = await apiService.getRestaurant(restaurantId);
+      setRestaurantType(response.restaurant.restaurant_type);
+    } catch (error: any) {
+      console.error('Failed to fetch restaurant details:', error);
+    }
+  };
 
-const fetchRestaurantQR = async () => {
-  try {
-    const response = await apiService.getRestaurant(restaurantId);
-    setRestaurantQRCode(response.restaurant.qr_code);
-  } catch (error: any) {
-    console.error('Failed to fetch restaurant QR:', error);
-  }
-};
-
-const fetchRestaurantDetails = async () => {
-  try {
-    const response = await apiService.getRestaurant(restaurantId);
-    setRestaurantType(response.restaurant.restaurant_type);
-  } catch (error: any) {
-    console.error('Failed to fetch restaurant details:', error);
-  }
-};
-
-const fetchGuests = async (showLoader = true) => {
-  if (showLoader) setLoading(true);
-  try {
-    const response = await apiService.getCheckedInGuests(restaurantId);
-    setGuests(response.guests);
-  } catch (error: any) {
-    console.error('Failed to fetch guests:', error);
-  } finally {
-    if (showLoader) setLoading(false);
-  }
-};
+  const fetchGuests = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    try {
+      const response = await apiService.getCheckedInGuests(restaurantId);
+      setGuests(response.guests);
+    } catch (error: any) {
+      console.error('Failed to fetch guests:', error);
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  };
 
   const fetchGuestOrders = async (sessionId: string) => {
     try {
@@ -106,89 +104,88 @@ const fetchGuests = async (showLoader = true) => {
     }
   };
 
-const handleGuestSelect = (guest: Guest) => {
-  setSelectedGuest(guest);
-  
-  // For luxury restaurants, check if guest has existing orders first
-  if (restaurantType === 'Luxury') {
-    // First fetch their orders to see if they have any
-    fetchGuestOrders(guest.session_id).then(() => {
-      // If guest has orders, show orders view
-      // If no orders, show menu selector for waiter to place orders
-      setSelectedGuestForMenu(guest);
-      setShowLuxuryMenu(true);
-    });
-  } else {
-    // For non-luxury restaurants, always show orders
-    fetchGuestOrders(guest.session_id);
-  }
-};
-
+  const handleGuestSelect = (guest: Guest) => {
+    setSelectedGuest(guest);
+    
+    // For luxury restaurants, check if guest has existing orders first
+    if (restaurantType === 'Luxury') {
+      // First fetch their orders to see if they have any
+      fetchGuestOrders(guest.session_id).then(() => {
+        // If guest has orders, show orders view
+        // If no orders, show menu selector for waiter to place orders
+        setSelectedGuestForMenu(guest);
+        setShowLuxuryMenu(true);
+      });
+    } else {
+      // For non-luxury restaurants, always show orders
+      fetchGuestOrders(guest.session_id);
+    }
+  };
 
   const handleServeOrder = async (orderId: string) => {
-  try {
-    setServingOrder(orderId);
-    
-    // Step 1: Notify user that order is ready for payment
-    const response = await apiService.requestPaymentConfirmation(orderId);
-    
-    if (response.success) {
-      // Show waiting state for waiter
-      alert('Payment request sent to customer. Waiting for confirmation...');
-      
-      // Start polling for payment confirmation
-      pollForPaymentConfirmation(orderId);
-    }
-    
-  } catch (error: any) {
-    alert(`Failed to request payment: ${error.message}`);
-    setServingOrder(null);
-  }
-};
-
-// Add this new function for polling payment status:
-const pollForPaymentConfirmation = (orderId: string) => {
-  const pollInterval = setInterval(async () => {
     try {
-      const status = await apiService.checkPaymentStatus(orderId);
+      setServingOrder(orderId);
       
-      if (status.confirmed) {
-        clearInterval(pollInterval);
+      // Step 1: Notify user that order is ready for payment
+      const response = await apiService.requestPaymentConfirmation(orderId);
+      
+      if (response.success) {
+        // Show waiting state for waiter
+        alert('Payment request sent to customer. Waiting for confirmation...');
         
-        // Process the actual payment
-        await apiService.serveOrder(orderId);
-        
-        // Refresh data after serving
-        fetchGuests();
-        if (selectedGuest) {
-          fetchGuestOrders(selectedGuest.session_id);
-        }
-        
-        alert('Payment confirmed and processed! Order served successfully.');
-        setServingOrder(null);
-        
-      } else if (status.declined) {
-        clearInterval(pollInterval);
-        alert('Payment was declined by customer.');
-        setServingOrder(null);
+        // Start polling for payment confirmation
+        pollForPaymentConfirmation(orderId);
       }
       
     } catch (error: any) {
+      alert(`Failed to request payment: ${error.message}`);
+      setServingOrder(null);
+    }
+  };
+
+  // Add this new function for polling payment status:
+  const pollForPaymentConfirmation = (orderId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await apiService.checkPaymentStatus(orderId);
+        
+        if (status.confirmed) {
+          clearInterval(pollInterval);
+          
+          // Process the actual payment
+          await apiService.serveOrder(orderId);
+          
+          // Refresh data after serving
+          fetchGuests();
+          if (selectedGuest) {
+            fetchGuestOrders(selectedGuest.session_id);
+          }
+          
+          alert('Payment confirmed and processed! Order served successfully.');
+          setServingOrder(null);
+          
+        } else if (status.declined) {
+          clearInterval(pollInterval);
+          alert('Payment was declined by customer.');
+          setServingOrder(null);
+        }
+        
+      } catch (error: any) {
+        clearInterval(pollInterval);
+        console.error('Payment polling error:', error);
+        setServingOrder(null);
+      }
+    }, 2000); // Poll every 2 seconds
+    
+    // Stop polling after 2 minutes
+    setTimeout(() => {
       clearInterval(pollInterval);
-      console.error('Payment polling error:', error);
-      setServingOrder(null);
-    }
-  }, 2000); // Poll every 2 seconds
-  
-  // Stop polling after 2 minutes
-  setTimeout(() => {
-    clearInterval(pollInterval);
-    if (servingOrder === orderId) {
-      alert('Payment confirmation timeout. Please try again.');
-      setServingOrder(null);
-    }
-  }, 120000);
-};
+      if (servingOrder === orderId) {
+        alert('Payment confirmation timeout. Please try again.');
+        setServingOrder(null);
+      }
+    }, 120000);
+  };
 
   const getOrderItemDetails = (order: Order) => {
     return order.items.map(item => ({
@@ -199,289 +196,80 @@ const pollForPaymentConfirmation = (orderId: string) => {
   };
 
   const QRCodeModal = () => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-xl p-6 w-full max-w-md">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-bold text-gray-900">Restaurant QR Code</h3>
-        <button 
-          onClick={() => setShowQRModal(false)}
-          className="text-gray-500 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
-        >
-          ✕
-        </button>
-      </div>
-      
-      <div className="text-center">
-        {restaurantQRCode ? (
-          <>
-            <img 
-              src={restaurantQRCode} 
-              alt="Restaurant QR Code" 
-              className="w-64 h-64 mx-auto border border-gray-200 rounded-lg"
-            />
-            <p className="text-sm text-gray-600 mt-4">
-              Show this QR code to customers for check-in
-            </p>
-          </>
-        ) : (
-          <div className="w-64 h-64 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-gray-500 text-sm">Loading QR Code...</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
-const handleLuxuryOrderPlace = async (orderData: any) => {
-  try {
-    // Refresh guests and orders after luxury order is placed
-    fetchGuests();
-    if (selectedGuest) {
-      fetchGuestOrders(selectedGuest.session_id);
-    }
-    
-    alert(`Order placed for ${selectedGuestForMenu?.guest_name}! Order #${orderData.order_number}`);
-  } catch (error: any) {
-    console.error('Error after luxury order:', error);
-  }
-};
-
-
- useEffect(() => {
-  fetchGuests();
-  fetchMenuItems();
-  // Auto-refresh every 30 seconds instead of 15, and remove the loading state
-  const interval = setInterval(() => {
-    fetchGuests(); // Remove loading state from this call
-    if (selectedGuest) {
-      fetchGuestOrders(selectedGuest.session_id);
-    }
-  }, 30000); // Increased to 30 seconds
-  
-  return () => clearInterval(interval);
-}, [restaurantId]);
-
-
-useEffect(() => {
-  fetchRestaurantQR();
-}, [restaurantId]);
-
-useEffect(() => {
-  fetchRestaurantDetails();
-}, [restaurantId]);
-
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">POS Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage orders and serve customers</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-500">
-                Restaurant ID: {restaurantId}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Restaurant QR Code</h3>
+          <button 
+            onClick={() => setShowQRModal(false)}
+            className="text-gray-500 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div className="text-center">
+          {restaurantQRCode ? (
+            <>
+              <img 
+                src={restaurantQRCode} 
+                alt="Restaurant QR Code" 
+                className="w-64 h-64 mx-auto border border-gray-200 rounded-lg"
+              />
+              <p className="text-sm text-gray-600 mt-4">
+                Show this QR code to customers for check-in
+              </p>
+            </>
+          ) : (
+            <div className="w-64 h-64 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-500 text-sm">Loading QR Code...</p>
               </div>
-              <button 
-                onClick={() => fetchGuests(true)}
-                disabled={loading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400"
-              >
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
-
-      <div className="p-6">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Guest List */}
-          <div className="bg-white rounded-xl shadow-md border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                    <span className="text-blue-600 font-bold">👥</span>
-                  </div>
-                  Active Guests
-                </h2>
-                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {guests.length} checked in
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-600">Loading guests...</span>
-                </div>
-              ) : guests.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl text-gray-400">👥</span>
-                  </div>
-                  <p className="text-gray-500 text-lg">No guests checked in</p>
-                  <p className="text-gray-400 text-sm mt-1">Guests will appear here when they scan QR codes</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {guests.map(guest => (
-                    <div 
-                      key={guest.session_id}
-                      onClick={() => handleGuestSelect(guest)}
-                      className={`border-2 rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
-                        selectedGuest?.session_id === guest.session_id 
-                          ? 'border-blue-500 bg-blue-50 shadow-md' 
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center mb-2">
-                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                              {guest.guest_name.charAt(0)}
-                            </div>
-                            <div className="ml-3">
-                              <h3 className="font-semibold text-gray-900">{guest.guest_name}</h3>
-                              <p className="text-sm text-gray-600">Code: {guest.session_code}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <span>🪑 Table {guest.table_number || 'N/A'}</span>
-                            <span>👥 {guest.party_size} guests</span>
-                            <span>🕐 {new Date(guest.checked_in_at).toLocaleTimeString()}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
- <div className="text-right">
-  <div className="text-lg font-bold text-gray-900">
-    {guest.order_count} orders
-  </div>
-  {guest.pending_orders > 0 && (
-    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">
-      {guest.pending_orders} pending
     </div>
-  )}
-  
-  {/* Add these buttons for luxury restaurants */}
-  {restaurantType === 'Luxury' ? (
-    <div className="mt-2 space-y-1">
-      <button
-        onClick={() => fetchGuestOrders(guest.session_id)}
-        className="w-full bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
-      >
-        View Orders
-      </button>
-      <button
-        onClick={() => {
-          setSelectedGuestForMenu(guest);
-          setShowLuxuryMenu(true);
-        }}
-        className="w-full bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
-      >
-        Place Order
-      </button>
-    </div>
-  ) : (
-    <button
-      onClick={async () => {
-        try {
-          await apiService.checkOut(guest.session_id);
-          alert(`${guest.guest_name} checked out successfully!`);
-          fetchGuests();
-        } catch (error: any) {
-          alert(`Failed to check out: ${error.message}`);
-        }
-      }}
-      className="mt-2 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
-    >
-      Force Check Out
-    </button>
-  )}
-</div>>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+  );
 
-          {/* Orders Section */}
-          <div className="bg-white rounded-xl shadow-md border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                  <span className="text-green-600 font-bold">🍽️</span>
-                </div>
-                {selectedGuest ? `${selectedGuest.guest_name}'s Orders` : 'Select a Guest'}
-              </h2>
-            </div>
+  const handleLuxuryOrderPlace = async (orderData: any) => {
+    try {
+      // Refresh guests and orders after luxury order is placed
+      fetchGuests();
+      if (selectedGuest) {
+        fetchGuestOrders(selectedGuest.session_id);
+      }
+      
+      alert(`Order placed for ${selectedGuestForMenu?.guest_name}! Order #${orderData.order_number}`);
+    } catch (error: any) {
+      console.error('Error after luxury order:', error);
+    }
+  };
 
-            <div className="p-6">
-              {selectedGuest ? (
-                guestOrders.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-2xl text-gray-400">🍽️</span>
-                    </div>
-                    <p className="text-gray-500 text-lg">No orders yet</p>
-                    <p className="text-gray-400 text-sm mt-1">Orders will appear when guest places them</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {guestOrders.map(order => {
-                      const orderItems = getOrderItemDetails(order);
-                      
-                      return (
-                        <div key={order.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
-                              <p className="text-sm text-gray-600">
-                                {new Date(order.created_at).toLocaleString()}
-                              </p>
-                            </div>
-                            
-                            <div className="text-right">
-                              <div className="text-xl font-bold text-gray-900">
-                                ₦{order.total_amount.toLocaleString()}
-                              </div>
-                              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                order.status === 'pending' 
-                                  ? 'bg-orange-100 text-orange-800'
-                                  : order.status === 'served'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                              </div>
-                            </div>
-                          </div>
+  useEffect(() => {
+    fetchGuests();
+    fetchMenuItems();
+    // Auto-refresh every 30 seconds instead of 15, and remove the loading state
+    const interval = setInterval(() => {
+      fetchGuests(false); // Remove loading state from this call
+      if (selectedGuest) {
+        fetchGuestOrders(selectedGuest.session_id);
+      }
+    }, 30000); // Increased to 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [restaurantId]);
 
-                          {/* Order Items */}
-                          <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                            <h4 className="font-medium text-gray-900 mb-2">Order Items:</h4>
-                            <div className="space-y-1">
-                              {orderItems.map((item, index) => (
-                                <div key={index} className="flex justify-between text-sm">
-                                  <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                                  <span className="font-medium text-gray-900">₦{(item.price * item.quantity).toLocaleString()}</span>
-                                </div>
-                              ))}
-                            </div>
-return (
+  useEffect(() => {
+    fetchRestaurantQR();
+  }, [restaurantId]);
+
+  useEffect(() => {
+    fetchRestaurantDetails();
+  }, [restaurantId]);
+
+  return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <div className="bg-white shadow-lg border-b border-gray-200">
@@ -764,5 +552,4 @@ return (
       )}
     </div>
   );
-  
 };
