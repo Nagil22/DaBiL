@@ -84,17 +84,22 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
 
 const fetchGuestOrders = async (sessionId: string) => {
   try {
+    console.log('Fetching orders for session:', sessionId);
+    console.log('Current restaurant ID:', restaurantId);
+    
     const response = await apiService.getSessionOrders(sessionId);
+    console.log('Orders response:', response);
+    
     setGuestOrders(response.orders);
     
-    // Also ensure the guest is selected so the orders panel shows
     const guest = guests.find(g => g.session_id === sessionId);
     if (guest && !selectedGuest) {
       setSelectedGuest(guest);
     }
   } catch (error: any) {
     console.error('Failed to fetch orders:', error);
-    setGuestOrders([]); // Clear orders on error
+    alert(`Debug - Failed to fetch orders: ${error.message}`);
+    setGuestOrders([]);
   }
 };
 

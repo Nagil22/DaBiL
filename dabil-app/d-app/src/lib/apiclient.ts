@@ -262,11 +262,11 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     });
   }
 
-  async checkOut(sessionId: string): Promise<any> {
-    return this.makeRequest(`/sessions/${sessionId}/checkout`, {
-      method: 'PUT',
-    });
-  }
+async checkOut(sessionId: string): Promise<any> {
+  return this.makeRequest(`/sessions/${sessionId}/checkout`, {
+    method: 'PUT',
+  });
+}
 
   async getActiveSession(): Promise<any> {
     return this.makeRequest('/sessions/active');
