@@ -1,5 +1,5 @@
 // Complete API Service with email/password authentication
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5004/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dabil.onrender.com/api';
 
 // Types
 interface User {
