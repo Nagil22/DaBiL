@@ -82,14 +82,21 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
     }
   };
 
-  const fetchGuestOrders = async (sessionId: string) => {
-    try {
-      const response = await apiService.getSessionOrders(sessionId);
-      setGuestOrders(response.orders);
-    } catch (error: any) {
-      console.error('Failed to fetch orders:', error);
+const fetchGuestOrders = async (sessionId: string) => {
+  try {
+    const response = await apiService.getSessionOrders(sessionId);
+    setGuestOrders(response.orders);
+    
+    // Also ensure the guest is selected so the orders panel shows
+    const guest = guests.find(g => g.session_id === sessionId);
+    if (guest && !selectedGuest) {
+      setSelectedGuest(guest);
     }
-  };
+  } catch (error: any) {
+    console.error('Failed to fetch orders:', error);
+    setGuestOrders([]); // Clear orders on error
+  }
+};
 
   const fetchMenuItems = async () => {
     try {
@@ -325,7 +332,7 @@ useEffect(() => {
                         
                           {restaurantType === 'Luxury' ? (
                             <div className="mt-2 space-y-1">
-                              <button
+                            <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedGuest(guest);
@@ -345,7 +352,24 @@ useEffect(() => {
                               >
                                 Place Order
                               </button>
+                               <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await apiService.checkOut(guest.session_id);
+                                alert(`${guest.guest_name} checked out successfully!`);
+                                fetchGuests();
+                              } catch (error: any) {
+                                alert(`Failed to check out: ${error.message}`);
+                              }
+                            }}
+                            className="w-full bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                          >
+                            Check Out User
+                          </button>
+                              
                             </div>
+                          
                           ) : (
                             <button
                               onClick={async (e) => {
