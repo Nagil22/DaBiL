@@ -192,8 +192,8 @@ const handleQRCheckIn = async (restaurantId: string) => {
         setActiveSession(activeSessionResponse.session);
         setSelectedRestaurant(restaurant);
         
-        // For luxury restaurants, go to home; for others, go to menu
-        setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
+        // Always go to home for consistency, users can click "View Menu" from there
+        setCurrentView('home');
         
         setTimeout(() => {
           success(`Welcome back to ${restaurant.name}! Continuing your session.`);
@@ -214,12 +214,11 @@ const handleQRCheckIn = async (restaurantId: string) => {
     setActiveSession(response.session);
     setSelectedRestaurant(restaurant);
     
-    // For luxury restaurants, go to home; for others, go to menu
-    setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
+    // Always go to home, let user navigate to menu if they want
+    setCurrentView('home');
     
     setTimeout(() => {
-      const destination = restaurant.restaurant_type === 'Luxury' ? 'Stay on home screen - a waiter will assist you' : 'You can now browse the menu and place orders';
-      success(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}. ${destination}`);
+      success(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}. Click "View Menu" to browse and order.`);
     }, 100);
     
   } catch (error: any) {
@@ -231,10 +230,10 @@ const handleQRCheckIn = async (restaurantId: string) => {
         
         setActiveSession(activeSessionResponse.session);
         setSelectedRestaurant(restaurant);
-        setCurrentView(restaurant.restaurant_type === 'Luxury' ? 'home' : 'menu');
+        setCurrentView('home');
         
         setTimeout(() => {
-          success(`You already have an active session at ${restaurant.name}. Taking you to the ${restaurant.restaurant_type === 'Luxury' ? 'home screen' : 'menu'}.`);
+          success(`You already have an active session at ${restaurant.name}.`);
         }, 100);
       } catch (secondError: any) {
         success('Session error. Please try again or contact support.');
@@ -609,7 +608,7 @@ const renderGuestInterface = () => (
             className="w-full border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:border-blue-300 hover:text-blue-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             <span>🍽️</span>
-            <span>{loading ? 'Loading...' : 'View Active Session'}</span>
+            <span>{loading ? 'Loading...' : 'View Menu'}</span>
           </button>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1881,7 +1880,7 @@ return (
             console.log('Order placed:', orderData);
             success(`Order ${orderData.order_number} placed successfully! You can order more items.`);
           }}
-          onBack={() => setCurrentView('session')} // Goes back to session view
+          onBack={() => setCurrentView('home')} // Goes back to session view
         />
       )}
     </main>

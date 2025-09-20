@@ -76,42 +76,49 @@ export const LuxuryMenuSelector: React.FC<LuxuryMenuSelectorProps> = ({
     return Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   };
 
-  const handlePlaceOrder = async () => {
-    const orderItems = Object.entries(cart)
-      .filter(([_, quantity]) => quantity > 0)
-      .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+const handlePlaceOrder = async () => {
+  const orderItems = Object.entries(cart)
+    .filter(([_, quantity]) => quantity > 0)
+    .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+  
+  if (orderItems.length === 0) {
+    alert('Please add items to the order');
+    return;
+  }
+
+  try {
+    setPlacing(true);
     
-    if (orderItems.length === 0) {
-      alert('Please add items to the order');
-      return;
-    }
+    // Debug logging to check what we're sending
+    console.log('Placing order with:', {
+      sessionId: guest.session_id,
+      items: orderItems,
+      notes: notes || undefined
+    });
+    
+    const response = await apiService.createOrder({
+      sessionId: guest.session_id,
+      items: orderItems,
+      notes: notes || undefined
+    });
 
-    try {
-      setPlacing(true);
-      
-      const response = await apiService.createOrder({
-        sessionId: guest.session_id,
-        items: orderItems,
-        notes: notes || undefined
-      });
-
-      // Clear cart after successful order
-      setCart({});
-      setNotes('');
-      
-      // Call parent callback with order data
-      onOrderPlace(response.order);
-      
-      alert(`Order placed successfully! Order #${response.order.order_number}`);
-      onClose();
-      
-    } catch (error: any) {
-      alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setPlacing(false);
-    }
-  };
-
+    // Clear cart after successful order
+    setCart({});
+    setNotes('');
+    
+    // Call parent callback with order data
+    onOrderPlace(response.order);
+    
+    alert(`Order placed successfully! Order #${response.order.order_number}`);
+    onClose();
+    
+  } catch (error: any) {
+    console.error('Order placement error:', error);
+    alert(`Failed to place order: ${error.message}`);
+  } finally {
+    setPlacing(false);
+  }
+};
   // Group menu items by category
   const groupedItems = menuItems.reduce((groups, item) => {
     const category = item.category || 'Other';

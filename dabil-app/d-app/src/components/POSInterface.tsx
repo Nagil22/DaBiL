@@ -104,88 +104,40 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
     }
   };
 
-  const handleGuestSelect = (guest: Guest) => {
-    setSelectedGuest(guest);
-    
-    // For luxury restaurants, check if guest has existing orders first
-    if (restaurantType === 'Luxury') {
-      // First fetch their orders to see if they have any
-      fetchGuestOrders(guest.session_id).then(() => {
-        // If guest has orders, show orders view
-        // If no orders, show menu selector for waiter to place orders
-        setSelectedGuestForMenu(guest);
-        setShowLuxuryMenu(true);
-      });
-    } else {
-      // For non-luxury restaurants, always show orders
-      fetchGuestOrders(guest.session_id);
-    }
-  };
+const handleGuestSelect = (guest: Guest) => {
+  setSelectedGuest(guest);
+  
+  // For luxury restaurants, always show orders view when clicking on guest
+  if (restaurantType === 'Luxury') {
+    fetchGuestOrders(guest.session_id);
+  } else {
+    // For non-luxury restaurants, always show orders
+    fetchGuestOrders(guest.session_id);
+  }
+};
 
-  const handleServeOrder = async (orderId: string) => {
-    try {
-      setServingOrder(orderId);
-      
-      // Step 1: Notify user that order is ready for payment
-      const response = await apiService.requestPaymentConfirmation(orderId);
-      
-      if (response.success) {
-        // Show waiting state for waiter
-        alert('Payment request sent to customer. Waiting for confirmation...');
-        
-        // Start polling for payment confirmation
-        pollForPaymentConfirmation(orderId);
-      }
-      
-    } catch (error: any) {
-      alert(`Failed to request payment: ${error.message}`);
-      setServingOrder(null);
-    }
-  };
-
-  // Add this new function for polling payment status:
-  const pollForPaymentConfirmation = (orderId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await apiService.checkPaymentStatus(orderId);
-        
-        if (status.confirmed) {
-          clearInterval(pollInterval);
-          
-          // Process the actual payment
-          await apiService.serveOrder(orderId);
-          
-          // Refresh data after serving
-          fetchGuests();
-          if (selectedGuest) {
-            fetchGuestOrders(selectedGuest.session_id);
-          }
-          
-          alert('Payment confirmed and processed! Order served successfully.');
-          setServingOrder(null);
-          
-        } else if (status.declined) {
-          clearInterval(pollInterval);
-          alert('Payment was declined by customer.');
-          setServingOrder(null);
-        }
-        
-      } catch (error: any) {
-        clearInterval(pollInterval);
-        console.error('Payment polling error:', error);
-        setServingOrder(null);
-      }
-    }, 2000); // Poll every 2 seconds
+ const handleServeOrder = async (orderId: string) => {
+  try {
+    setServingOrder(orderId);
     
-    // Stop polling after 2 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval);
-      if (servingOrder === orderId) {
-        alert('Payment confirmation timeout. Please try again.');
-        setServingOrder(null);
-      }
-    }, 120000);
-  };
+    // Direct order serving without payment confirmation
+    await apiService.serveOrder(orderId);
+    
+    // Refresh data after serving
+    fetchGuests();
+    if (selectedGuest) {
+      fetchGuestOrders(selectedGuest.session_id);
+    }
+    
+    alert('Order served successfully!');
+    setServingOrder(null);
+    
+  } catch (error: any) {
+    alert(`Failed to serve order: ${error.message}`);
+    setServingOrder(null);
+  }
+};
+
 
   const getOrderItemDetails = (order: Order) => {
     return order.items.map(item => ({
@@ -233,33 +185,36 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
     </div>
   );
 
-  const handleLuxuryOrderPlace = async (orderData: any) => {
-    try {
-      // Refresh guests and orders after luxury order is placed
-      fetchGuests();
+const handleLuxuryOrderPlace = async (orderData: any) => {
+  try {
+    // Force immediate refresh after order is placed
+    setTimeout(() => {
+      fetchGuests(false);
       if (selectedGuest) {
         fetchGuestOrders(selectedGuest.session_id);
       }
-      
-      alert(`Order placed for ${selectedGuestForMenu?.guest_name}! Order #${orderData.order_number}`);
-    } catch (error: any) {
-      console.error('Error after luxury order:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchGuests();
-    fetchMenuItems();
-    // Auto-refresh every 30 seconds instead of 15, and remove the loading state
-    const interval = setInterval(() => {
-      fetchGuests(false); // Remove loading state from this call
-      if (selectedGuest) {
-        fetchGuestOrders(selectedGuest.session_id);
-      }
-    }, 30000); // Increased to 30 seconds
+    }, 1000); // Small delay to ensure backend has processed the order
     
-    return () => clearInterval(interval);
-  }, [restaurantId]);
+    console.log('Order placed successfully:', orderData);
+  } catch (error: any) {
+    console.error('Error after luxury order:', error);
+  }
+};
+
+useEffect(() => {
+  fetchGuests();
+  fetchMenuItems();
+  
+  // More frequent refresh for better real-time updates
+  const interval = setInterval(() => {
+    fetchGuests(false); // Don't show loading state
+    if (selectedGuest) {
+      fetchGuestOrders(selectedGuest.session_id);
+    }
+  }, 10000); // Reduced to 10 seconds for better real-time experience
+  
+  return () => clearInterval(interval);
+}, [restaurantId, selectedGuest]); // Added selectedGuest as dependency
 
   useEffect(() => {
     fetchRestaurantQR();
@@ -367,12 +322,13 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
                             </div>
                           )}
                           
-                          {/* Add these buttons for luxury restaurants */}
+                        
                           {restaurantType === 'Luxury' ? (
                             <div className="mt-2 space-y-1">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  setSelectedGuest(guest);
                                   fetchGuestOrders(guest.session_id);
                                 }}
                                 className="w-full bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
@@ -404,7 +360,7 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
                               }}
                               className="mt-2 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
                             >
-                              Force Check Out
+                               Check Out User
                             </button>
                           )}
                         </div>
