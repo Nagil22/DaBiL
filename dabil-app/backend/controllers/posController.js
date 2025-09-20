@@ -2,11 +2,10 @@ exports.getCheckedInGuests = async (req, res) => {
   const pool = req.app.locals.db;
   
   try {
-    // Use restaurant ID from staff token instead of URL param
     const restaurantId = req.restaurantId || req.params.restaurantId;
     
     if (!restaurantId) {
-      return res.status(400).json({ error: 'Restaurant ID not found. Please login again.' });
+      return res.status(400).json({ error: 'Restaurant ID not found' });
     }
     
     const result = await pool.query(`
