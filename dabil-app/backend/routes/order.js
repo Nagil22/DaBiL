@@ -6,13 +6,10 @@ const auth = require('../middleware/auth');
 // All order routes require authentication
 router.use(auth);
 
-// CREATE ORDER - This is the missing/broken route
+// THIS WAS MISSING - Add the POST route for creating orders
 router.post('/', orderController.createOrder);
 
-// SERVE ORDER
 router.put('/:orderId/serve', orderController.serveOrder);
-
-// Payment confirmation routes
 router.post('/:orderId/request-payment', orderController.requestPaymentConfirmation);
 router.get('/:orderId/payment-status', orderController.checkPaymentStatus);
 router.post('/:orderId/confirm-payment', orderController.confirmPayment);

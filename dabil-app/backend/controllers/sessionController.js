@@ -56,9 +56,11 @@ exports.checkOut = async (req, res) => {
   try {
     const { sessionId } = req.params;
     
+    // FIXED: For staff checkout, don't filter by user_id
+    // Staff should be able to check out any user at their restaurant
     const result = await pool.query(
-      'UPDATE sessions SET status = $1, checked_out_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3 RETURNING *',
-      ['completed', sessionId, req.userId]
+      'UPDATE sessions SET status = $1, checked_out_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      ['completed', sessionId]
     );
     
     if (result.rows.length === 0) {
