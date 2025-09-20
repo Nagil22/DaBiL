@@ -89,12 +89,11 @@ const handlePlaceOrder = async () => {
   try {
     setPlacing(true);
     
-    // Debug logging to check what we're sending
-    console.log('Placing order with:', {
-      sessionId: guest.session_id,
-      items: orderItems,
-      notes: notes || undefined
-    });
+    // First check if the guest has an active session at THIS restaurant
+    // The guest.session_id might be from a different restaurant
+    console.log('Attempting to place order for guest:', guest);
+    console.log('Restaurant ID:', restaurantId);
+    console.log('Guest session ID:', guest.session_id);
     
     const response = await apiService.createOrder({
       sessionId: guest.session_id,
@@ -102,19 +101,21 @@ const handlePlaceOrder = async () => {
       notes: notes || undefined
     });
 
-    // Clear cart after successful order
     setCart({});
     setNotes('');
-    
-    // Call parent callback with order data
     onOrderPlace(response.order);
-    
     alert(`Order placed successfully! Order #${response.order.order_number}`);
     onClose();
     
   } catch (error: any) {
     console.error('Order placement error:', error);
-    alert(`Failed to place order: ${error.message}`);
+    
+    // If session not found, the guest needs to check in at this restaurant first
+    if (error.message.includes('not found')) {
+      alert(`${guest.guest_name} needs to check in at this restaurant first before placing orders.`);
+    } else {
+      alert(`Failed to place order: ${error.message}`);
+    }
   } finally {
     setPlacing(false);
   }

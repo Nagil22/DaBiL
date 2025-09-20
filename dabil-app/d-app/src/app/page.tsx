@@ -181,7 +181,7 @@ const handleQRCheckIn = async (restaurantId: string) => {
   try {
     setLoading(true);
     
-    // Get restaurant details first to check if it's luxury
+    // Get restaurant details first
     const restaurantResponse = await apiService.getRestaurant(restaurantId);
     const restaurant = restaurantResponse.restaurant;
     
@@ -189,16 +189,21 @@ const handleQRCheckIn = async (restaurantId: string) => {
     try {
       const activeSessionResponse = await apiService.getActiveSession();
       if (activeSessionResponse.session) {
-        setActiveSession(activeSessionResponse.session);
-        setSelectedRestaurant(restaurant);
-        
-        // Always go to home for consistency, users can click "View Menu" from there
-        setCurrentView('home');
-        
-        setTimeout(() => {
-          success(`Welcome back to ${restaurant.name}! Continuing your session.`);
-        }, 100);
-        return;
+        // If session is for same restaurant, continue it
+        if (activeSessionResponse.session.restaurant_id === restaurantId) {
+          setActiveSession(activeSessionResponse.session);
+          setSelectedRestaurant(restaurant);
+          setCurrentView('home');
+          
+          setTimeout(() => {
+            success(`Welcome back to ${restaurant.name}! Continuing your session.`);
+          }, 100);
+          return;
+        } else {
+          // End previous session and start new one
+          await apiService.checkOut(activeSessionResponse.session.id);
+          success(`Checked out from previous restaurant. Starting new session at ${restaurant.name}.`);
+        }
       }
     } catch (error) {
       console.log('No active session found, creating new one');
@@ -213,34 +218,14 @@ const handleQRCheckIn = async (restaurantId: string) => {
     
     setActiveSession(response.session);
     setSelectedRestaurant(restaurant);
-    
-    // Always go to home, let user navigate to menu if they want
     setCurrentView('home');
     
     setTimeout(() => {
-      success(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}. Click "View Menu" to browse and order.`);
+      success(`Welcome to ${restaurant.name}! You're checked in. Session: ${response.session.session_code}.`);
     }, 100);
     
   } catch (error: any) {
-    if (error.message.includes('already have an active session')) {
-      try {
-        const restaurantResponse = await apiService.getRestaurant(restaurantId);
-        const restaurant = restaurantResponse.restaurant;
-        const activeSessionResponse = await apiService.getActiveSession();
-        
-        setActiveSession(activeSessionResponse.session);
-        setSelectedRestaurant(restaurant);
-        setCurrentView('home');
-        
-        setTimeout(() => {
-          success(`You already have an active session at ${restaurant.name}.`);
-        }, 100);
-      } catch (secondError: any) {
-        success('Session error. Please try again or contact support.');
-      }
-    } else {
-      success(error.message || 'Check-in failed. Please try again.');
-    }
+    success(error.message || 'Check-in failed. Please try again.');
   } finally {
     setLoading(false);
   }

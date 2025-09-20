@@ -41,10 +41,16 @@ exports.getSessionOrders = async (req, res) => {
   try {
     const { sessionId } = req.params;
     
-    const result = await pool.query(
-      'SELECT * FROM orders WHERE session_id = $1 ORDER BY created_at DESC',
-      [sessionId]
-    );
+    // Get restaurant ID from staff token
+    const restaurantId = req.restaurantId;
+    
+    // Only get orders from sessions at THIS restaurant
+    const result = await pool.query(`
+      SELECT o.* FROM orders o
+      JOIN sessions s ON o.session_id = s.id
+      WHERE o.session_id = $1 AND s.restaurant_id = $2
+      ORDER BY o.created_at DESC
+    `, [sessionId, restaurantId]);
     
     res.json({ orders: result.rows });
   } catch (error) {
