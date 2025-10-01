@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const restaurantManagerController = require('../controllers/managerController');
 const auth = require('../middleware/auth');
-const manager = require('../middleware/manager'); // Add manager middleware
+
 
 // All routes require authentication (restaurant managers)
 router.use(auth);
-router.use(manager); // Add manager authorization
+
 
 router.get('/my-restaurant', restaurantManagerController.getMyRestaurant);
 router.get('/stats', restaurantManagerController.getMyRestaurantStats);
