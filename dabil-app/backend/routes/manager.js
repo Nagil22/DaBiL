@@ -28,34 +28,34 @@ router.get('/loyalty-overview', async (req, res) => {
 
     const restaurantId = restaurantResult.rows[0].id;
 
-    // Calculate points from orders (10% of spending as points)
+    // Calculate points from sessions (since orders might not have user_id directly)
     const result = await req.app.locals.db.query(`
       SELECT 
-        COALESCE(SUM(o.total_amount * 0.1), 0) as total_points_earned,
-        COUNT(DISTINCT o.user_id) as active_customers,
-        COALESCE(SUM(o.total_amount), 0) as total_customer_spend,
-        COALESCE(AVG(o.total_amount * 0.1), 0) as average_points_per_customer,
+        COALESCE(SUM(s.total_spent * 0.1), 0) as total_points_earned,
+        COUNT(DISTINCT s.user_id) as active_customers,
+        COALESCE(SUM(s.total_spent), 0) as total_customer_spend,
+        COALESCE(AVG(s.total_spent * 0.1), 0) as average_points_per_customer,
         COALESCE(SUM(CASE 
-          WHEN o.created_at >= date_trunc('month', CURRENT_DATE) 
-          THEN o.total_amount * 0.1 
+          WHEN s.check_in_time >= date_trunc('month', CURRENT_DATE) 
+          THEN s.total_spent * 0.1 
           ELSE 0 
         END), 0) as points_earned_this_month
-      FROM orders o
-      WHERE o.restaurant_id = $1 
-        AND o.status = 'completed'
+      FROM sessions s
+      WHERE s.restaurant_id = $1 
+        AND s.status = 'completed'
     `, [restaurantId]);
 
-    // Get loyalty tier distribution from users who ordered at this restaurant
+    // Get loyalty tier distribution from users who visited this restaurant
     const tierResult = await req.app.locals.db.query(`
       SELECT 
         u.current_tier,
         COUNT(DISTINCT u.id) as customer_count,
-        COALESCE(SUM(o.total_amount * 0.1), 0) as points_earned,
-        COALESCE(SUM(o.total_amount), 0) as total_spent
+        COALESCE(SUM(s.total_spent * 0.1), 0) as points_earned,
+        COALESCE(SUM(s.total_spent), 0) as total_spent
       FROM users u
-      JOIN orders o ON u.id = o.user_id
-      WHERE o.restaurant_id = $1 
-        AND o.status = 'completed'
+      JOIN sessions s ON u.id = s.user_id
+      WHERE s.restaurant_id = $1 
+        AND s.status = 'completed'
       GROUP BY u.current_tier
       ORDER BY points_earned DESC
     `, [restaurantId]);
@@ -65,13 +65,13 @@ router.get('/loyalty-overview', async (req, res) => {
       SELECT 
         u.name as customer_name,
         u.current_tier,
-        COALESCE(SUM(o.total_amount * 0.1), 0) as total_points_earned,
-        COALESCE(SUM(o.total_amount), 0) as total_spent,
-        COUNT(o.id) as order_count
+        COALESCE(SUM(s.total_spent * 0.1), 0) as total_points_earned,
+        COALESCE(SUM(s.total_spent), 0) as total_spent,
+        COUNT(s.id) as visit_count
       FROM users u
-      JOIN orders o ON u.id = o.user_id
-      WHERE o.restaurant_id = $1 
-        AND o.status = 'completed'
+      JOIN sessions s ON u.id = s.user_id
+      WHERE s.restaurant_id = $1 
+        AND s.status = 'completed'
       GROUP BY u.id, u.name, u.current_tier
       ORDER BY total_points_earned DESC
       LIMIT 10
