@@ -387,9 +387,12 @@ async getManagerLoyaltyOverview(): Promise<{
     total_customer_spend: number;
     average_points_per_customer: number;
     points_earned_this_month: number;
+    total_sessions: number;
+    restaurant_name: string;
   };
   tierDistribution: any[];
   topCustomers: any[];
+  monthlyTrend: any[];
 }> {
   return this.makeRequest('/manager/loyalty-overview');
 }
