@@ -454,11 +454,25 @@ const fetchManagerLoyaltyData = async () => {
     console.log('Starting to fetch manager loyalty data...');
     const response = await apiService.getManagerLoyaltyOverview();
     console.log('Manager loyalty API response:', response);
-    setLoyaltyOverview(response.restaurant_loyalty_stats);
-    setLoyaltyTierDistribution(response.tierDistribution || []);
+    
+    // Handle the response based on what we actually get
+    if (response.restaurant_loyalty_stats) {
+      setLoyaltyOverview(response.restaurant_loyalty_stats);
+      setLoyaltyTierDistribution(response.tierDistribution || []);
+    }
+    
   } catch (err: any) {
     console.error('Failed to fetch loyalty data:', err);
-    error('Failed to load loyalty data: ' + err.message,);
+    // Set empty data to prevent breaking the UI
+    setLoyaltyOverview({
+      total_points_earned: 0,
+      total_points_redeemed: 0,
+      active_customers: 0,
+      total_customer_spend: 0,
+      average_points_per_customer: 0,
+      points_earned_this_month: 0
+    });
+    setLoyaltyTierDistribution([]);
   }
 };
 
