@@ -64,6 +64,10 @@ export default function DabilApp() {
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [paymentOrderData, setPaymentOrderData] = useState<any>(null);
   const { showToast, showModal, success, error, warning, info, confirm } = useNotifications();
+  const [payoutsData, setPayoutsData] = useState<any[]>([]);
+  const [payoutHistory, setPayoutHistory] = useState<any[]>([]);
+  const [loyaltyOverview, setLoyaltyOverview] = useState<any>(null);
+  const [loyaltyTierDistribution, setLoyaltyTierDistribution] = useState<any[]>([]);
 
   // Initialize app
 useEffect(() => {
@@ -150,20 +154,26 @@ useEffect(() => {
 }, [user, activeSession]);
 
 
+
 useEffect(() => {
   // Fetch manager data when user is restaurant_manager and view is manager
   if (user?.role === 'restaurant_manager' && currentView === 'manager') {
     fetchManagerData();
+    fetchManagerLoyaltyData();
   }
 }, [user, currentView]);
 
- useEffect(() => {
-    if (currentView === 'admin') {
-      fetchAdminStats();
-    }
-  }, [currentView]);
+useEffect(() => {
+  if (currentView === 'admin') {
+    fetchAdminStats();
+  }
+  if (currentView === 'admin-payouts') {
+    fetchPayoutsData();
+  }
+}, [currentView]);
 
-  const fetchAdminStats = async () => {
+
+const fetchAdminStats = async () => {
     try {
       const stats = await apiService.getAdminStats();
       setAdminStats(stats);
@@ -171,6 +181,145 @@ useEffect(() => {
       console.error('Failed to fetch admin stats:', error);
     }
   };
+
+const renderAdminPayouts = () => {
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Payout Tracking</h2>
+            <p className="text-gray-600">All-time sales summary for restaurant payouts</p>
+          </div>
+          <div className="text-sm text-gray-500">
+            As of {new Date().toLocaleDateString()}
+          </div>
+        </div>
+
+        {/* Payout Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-blue-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-blue-900 mb-2">Total Restaurants</h3>
+            <p className="text-2xl font-bold text-blue-700">{payoutsData.length}</p>
+          </div>
+          <div className="bg-green-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-green-900 mb-2">Total Sales</h3>
+            <p className="text-2xl font-bold text-green-700">
+              ₦{payoutsData.reduce((sum, item) => sum + (item.total_sales || 0), 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-purple-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-purple-900 mb-2">Total Orders</h3>
+            <p className="text-2xl font-bold text-purple-700">
+              {payoutsData.reduce((sum, item) => sum + (item.total_orders || 0), 0)}
+            </p>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-yellow-900 mb-2">Avg per Restaurant</h3>
+            <p className="text-2xl font-bold text-yellow-700">
+              ₦{payoutsData.length > 0 ? 
+                Math.round(payoutsData.reduce((sum, item) => sum + (item.total_sales || 0), 0) / payoutsData.length).toLocaleString() 
+                : 0}
+            </p>
+          </div>
+        </div>
+
+        {/* Payouts Table */}
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Restaurant
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Sales
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Orders
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {payoutsData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl mb-2">📊</span>
+                        <p>No payout data available</p>
+                        <p className="text-sm">Sales data will appear here as orders are completed</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  payoutsData.map((payout) => (
+                    <tr key={payout.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{payout.name}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">{payout.restaurant_type}</div>
+                        <div className="text-xs text-gray-400">{payout.cuisine_type}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-green-600">
+                          ₦{(payout.total_sales || 0).toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{payout.total_orders || 0}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                          {payout.payout_status || 'Pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Historical Data */}
+        <div className="mt-8">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Periods</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {payoutHistory.slice(0, 6).map((history, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4">
+                <div className="text-sm text-gray-500 mb-2">
+                  {new Date(history.period).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </div>
+                <div className="text-lg font-bold text-gray-900">
+                  ₦{(history.period_sales || 0).toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-600">{history.order_count || 0} orders</div>
+                <div className="text-xs text-gray-400 mt-2">{history.name}</div>
+                <div className="mt-2">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    history.payout_status === 'paid' 
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {history.payout_status || 'Pending'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const handleQRCheckIn = async (restaurantId: string) => {
   if (!user) {
@@ -287,6 +436,36 @@ const verifyPayment = async (reference: string) => {
     }
   } catch (error: any) {
     console.error('Failed to fetch manager data:', error);
+  }
+};
+
+const fetchManagerLoyaltyData = async () => {
+  try {
+    console.log('Starting to fetch manager loyalty data...');
+    const response = await apiService.getManagerLoyaltyOverview();
+    console.log('Manager loyalty API response:', response);
+    setLoyaltyOverview(response.loyaltyOverview);
+    setLoyaltyTierDistribution(response.tierDistribution || []);
+  } catch (err: any) {
+    console.error('Failed to fetch loyalty data:', err);
+    error('Failed to load loyalty data: ' + err.message,);
+  }
+};
+
+const fetchPayoutsData = async () => {
+  try {
+    console.log('Starting to fetch payouts data...');
+    const payoutsResponse = await apiService.getAdminPayouts();
+    console.log('Payouts API response:', payoutsResponse);
+    setPayoutsData(payoutsResponse.payouts || []);
+    
+    const historyResponse = await apiService.getAdminPayoutHistory();
+    console.log('Payout history API response:', historyResponse);
+    setPayoutHistory(historyResponse.payoutHistory || []);
+  } catch (err: any) {
+    console.error('Failed to fetch payouts data:', err);
+    // Use the notification system properly
+    error('Failed to load payout data: ' + err.message);
   }
 };
   const fetchWalletBalance = async () => {
@@ -432,19 +611,26 @@ const verifyPayment = async (reference: string) => {
             </div>
 
             {/* Navigation */}
-            {user && user.role === 'admin' && (
-              <div className="hidden md:flex items-center space-x-4">
-                <button
-                  onClick={() => setCurrentView('admin')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    currentView === 'admin' ? 'bg-blue-800' : 'hover:bg-blue-700'
-                  }`}
-                >
-                  Dashboard
-                </button>
-              
-              </div>
-            )}
+          {user && user.role === 'admin' && (
+  <div className="hidden md:flex items-center space-x-4">
+    <button
+      onClick={() => setCurrentView('admin')}
+      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        currentView === 'admin' ? 'bg-blue-800' : 'hover:bg-blue-700'
+      }`}
+    >
+      Dashboard
+    </button>
+    <button
+      onClick={() => setCurrentView('admin-payouts')}
+      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        currentView === 'admin-payouts' ? 'bg-blue-800' : 'hover:bg-blue-700'
+      }`}
+    >
+      Payouts
+    </button>
+  </div>
+)}
 
             {/* User info and actions */}
             <div className="flex items-center space-x-4">
@@ -809,6 +995,17 @@ const renderManagerInterface = () => {
             >
               Daily Sales
             </button>
+             
+            <button
+              onClick={() => setActiveTab('loyalty')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'loyalty'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Loyalty Points
+            </button>
           </nav>
         </div>
 
@@ -985,6 +1182,109 @@ const renderManagerInterface = () => {
     )}
   </div>
 )}
+
+      {activeTab === 'loyalty' && (
+  <div>
+    <div className="flex justify-between items-center mb-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900">Loyalty Points Overview</h3>
+        <p className="text-gray-600">Customer loyalty points accumulated at your restaurant (All-time)</p>
+      </div>
+      <div className="text-sm text-gray-500">
+        All-time data
+      </div>
+    </div>
+
+    {/* Loyalty Summary Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="bg-purple-50 p-4 rounded-xl">
+        <h3 className="font-semibold text-purple-900 mb-2">Total Points Earned</h3>
+        <p className="text-2xl font-bold text-purple-700">
+          {loyaltyOverview?.total_points_earned?.toLocaleString() || 0}
+        </p>
+        <p className="text-sm text-purple-600 mt-2">All-time</p>
+      </div>
+      <div className="bg-blue-50 p-4 rounded-xl">
+        <h3 className="font-semibold text-blue-900 mb-2">Active Customers</h3>
+        <p className="text-2xl font-bold text-blue-700">
+          {loyaltyOverview?.active_customers || 0}
+        </p>
+        <p className="text-sm text-blue-600 mt-2">Earned points all-time</p>
+      </div>
+      <div className="bg-green-50 p-4 rounded-xl">
+        <h3 className="font-semibold text-green-900 mb-2">Avg Points per Customer</h3>
+        <p className="text-2xl font-bold text-green-700">
+          {loyaltyOverview?.active_customers > 0 
+            ? Math.round(loyaltyOverview.total_points_earned / loyaltyOverview.active_customers) 
+            : 0
+          }
+        </p>
+        <p className="text-sm text-green-600 mt-2">All-time</p>
+      </div>
+      <div className="bg-yellow-50 p-4 rounded-xl">
+        <h3 className="font-semibold text-yellow-900 mb-2">Revenue Generated</h3>
+        <p className="text-2xl font-bold text-yellow-700">
+          ₦{loyaltyOverview?.revenue_generated ? Math.round(loyaltyOverview.revenue_generated).toLocaleString() : 0}
+        </p>
+        <p className="text-sm text-yellow-600 mt-2">From loyalty sales</p>
+      </div>
+    </div>
+
+    {/* Tier Distribution */}
+    <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+      <h4 className="text-lg font-semibold text-gray-900 mb-4">Customer Tier Distribution (All-time)</h4>
+      {loyaltyTierDistribution.length > 0 ? (
+        <div className="space-y-4">
+          {loyaltyTierDistribution.map((tier) => (
+            <div key={tier.current_tier} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center space-x-4">
+                <div className={`w-4 h-4 rounded-full ${
+                  tier.current_tier === 'gold' ? 'bg-yellow-400' :
+                  tier.current_tier === 'silver' ? 'bg-gray-400' : 'bg-orange-400'
+                }`}></div>
+                <div>
+                  <span className="font-medium text-gray-700 capitalize">
+                    {tier.current_tier || 'bronze'} Tier
+                  </span>
+                  <div className="text-sm text-gray-500">
+                    {tier.customer_count} customers
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold text-gray-900">{tier.points_earned?.toLocaleString() || 0} points</div>
+                <div className="text-sm text-green-600">
+                  ₦{tier.revenue_generated ? Math.round(tier.revenue_generated).toLocaleString() : 0} revenue
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>No loyalty data available</p>
+          <p className="text-sm">Customer points will appear here as they earn them</p>
+        </div>
+      )}
+    </div>
+
+    {/* Help Text */}
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="flex items-start space-x-3">
+        <span className="text-blue-600 text-lg">💡</span>
+        <div>
+          <h4 className="font-semibold text-blue-900">Loyalty Points Information</h4>
+          <p className="text-sm text-blue-700 mt-1">
+            This shows the total loyalty points earned by customers at your restaurant (all-time). 
+            Points are earned when customers make purchases and can be redeemed for rewards.
+            Revenue generated is estimated based on points earned.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );
@@ -1767,6 +2067,7 @@ const TransactionHistoryModal: React.FC<{ onClose: () => void }> = ({ onClose })
   );
 };
 
+
 const handleEditRestaurant = (restaurant: any) => {
   // For now, just show restaurant details
   success(`Edit functionality not implemented yet. Restaurant: ${restaurant.name}`);
@@ -1837,6 +2138,7 @@ return (
       {currentView === 'home' && (!user || user.role === 'user') && renderGuestInterface()}
       {currentView === 'admin' && renderAdminInterface()}
       {currentView === 'manager' && renderManagerInterface()}
+      {currentView === 'admin-payouts' && renderAdminPayouts()}
       {currentView === 'pos' && renderPOSInterface()}
       {currentView === 'session' && (
         <div className="max-w-md mx-auto">

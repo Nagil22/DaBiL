@@ -250,6 +250,10 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     });
   }
 
+
+ 
+ 
+
   // Session Methods
   async checkIn(data: { 
     restaurantId: string; 
@@ -371,6 +375,20 @@ async declinePayment(orderId: string): Promise<any> {
   async getMyRestaurantStats(): Promise<{ stats: any }> {
     return this.makeRequest('/manager/stats');
   }
+async getAdminPayouts(): Promise<{ payouts: any[] }> {
+  return this.makeRequest('/admin/payouts');
+}
+
+async getAdminPayoutHistory(limit: number = 20): Promise<{ payoutHistory: any[] }> {
+  return this.makeRequest(`/admin/payouts/history?limit=${limit}`);
+}
+
+async getManagerLoyaltyOverview(): Promise<{ 
+  loyaltyOverview: any; 
+  tierDistribution: any[] 
+}> {
+  return this.makeRequest('/manager/loyalty-overview');
+}
 
   async createMyStaff(data: {
     email: string;
