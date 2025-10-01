@@ -250,10 +250,6 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     });
   }
 
-
- 
- 
-
   // Session Methods
   async checkIn(data: { 
     restaurantId: string; 
@@ -384,8 +380,16 @@ async getAdminPayoutHistory(limit: number = 20): Promise<{ payoutHistory: any[] 
 }
 
 async getManagerLoyaltyOverview(): Promise<{ 
-  loyaltyOverview: any; 
-  tierDistribution: any[] 
+  restaurant_loyalty_stats: {
+    total_points_earned: number;
+    total_points_redeemed: number;
+    active_customers: number;
+    total_customer_spend: number;
+    average_points_per_customer: number;
+    points_earned_this_month: number;
+  };
+  tierDistribution: any[];
+  topCustomers: any[];
 }> {
   return this.makeRequest('/manager/loyalty-overview');
 }

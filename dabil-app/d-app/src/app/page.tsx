@@ -182,7 +182,13 @@ const fetchAdminStats = async () => {
     }
   };
 
+// In renderAdminPayouts function, fix the number formatting:
 const renderAdminPayouts = () => {
+  // Calculate totals properly
+  const totalSales = payoutsData.reduce((sum, item) => sum + (parseFloat(item.total_sales) || 0), 0);
+  const totalOrders = payoutsData.reduce((sum, item) => sum + (parseInt(item.total_orders) || 0), 0);
+  const avgPerRestaurant = payoutsData.length > 0 ? totalSales / payoutsData.length : 0;
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
@@ -205,21 +211,19 @@ const renderAdminPayouts = () => {
           <div className="bg-green-50 p-4 rounded-xl">
             <h3 className="font-semibold text-green-900 mb-2">Total Sales</h3>
             <p className="text-2xl font-bold text-green-700">
-              ₦{payoutsData.reduce((sum, item) => sum + (item.total_sales || 0), 0).toLocaleString()}
+              ₦{totalSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </p>
           </div>
           <div className="bg-purple-50 p-4 rounded-xl">
             <h3 className="font-semibold text-purple-900 mb-2">Total Orders</h3>
             <p className="text-2xl font-bold text-purple-700">
-              {payoutsData.reduce((sum, item) => sum + (item.total_orders || 0), 0)}
+              {totalOrders}
             </p>
           </div>
           <div className="bg-yellow-50 p-4 rounded-xl">
             <h3 className="font-semibold text-yellow-900 mb-2">Avg per Restaurant</h3>
             <p className="text-2xl font-bold text-yellow-700">
-              ₦{payoutsData.length > 0 ? 
-                Math.round(payoutsData.reduce((sum, item) => sum + (item.total_sales || 0), 0) / payoutsData.length).toLocaleString() 
-                : 0}
+              ₦{avgPerRestaurant.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </p>
           </div>
         </div>
@@ -270,15 +274,21 @@ const renderAdminPayouts = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-green-600">
-                          ₦{(payout.total_sales || 0).toLocaleString()}
+                          ₦{(parseFloat(payout.total_sales) || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{payout.total_orders || 0}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          {payout.payout_status || 'Pending'}
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          payout.payout_status === 'paid' 
+                            ? 'bg-green-100 text-green-800'
+                            : payout.payout_status === 'no-sales'
+                            ? 'bg-gray-100 text-gray-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {payout.payout_status === 'no-sales' ? 'No Sales' : (payout.payout_status || 'Pending')}
                         </span>
                       </td>
                     </tr>
@@ -299,7 +309,7 @@ const renderAdminPayouts = () => {
                   {new Date(history.period).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </div>
                 <div className="text-lg font-bold text-gray-900">
-                  ₦{(history.period_sales || 0).toLocaleString()}
+                  ₦{(parseFloat(history.period_sales) || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </div>
                 <div className="text-sm text-gray-600">{history.order_count || 0} orders</div>
                 <div className="text-xs text-gray-400 mt-2">{history.name}</div>
@@ -444,7 +454,7 @@ const fetchManagerLoyaltyData = async () => {
     console.log('Starting to fetch manager loyalty data...');
     const response = await apiService.getManagerLoyaltyOverview();
     console.log('Manager loyalty API response:', response);
-    setLoyaltyOverview(response.loyaltyOverview);
+    setLoyaltyOverview(response.restaurant_loyalty_stats);
     setLoyaltyTierDistribution(response.tierDistribution || []);
   } catch (err: any) {
     console.error('Failed to fetch loyalty data:', err);
