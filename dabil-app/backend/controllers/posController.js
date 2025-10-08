@@ -1,3 +1,4 @@
+// controllers/posController.js
 exports.getCheckedInGuests = async (req, res) => {
   const pool = req.app.locals.db;
   
@@ -48,6 +49,33 @@ exports.getRestaurantMenu = async (req, res) => {
     res.json({ menuItems: result.rows });
   } catch (error) {
     console.error('Get restaurant menu error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getSessionOrders = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    const { sessionId } = req.params;
+    
+    console.log('Debug - SessionId:', sessionId);
+    console.log('Debug - RestaurantId:', req.restaurantId);
+    
+    // Get orders for this session
+    const result = await pool.query(`
+      SELECT o.*, s.restaurant_id
+      FROM orders o
+      JOIN sessions s ON o.session_id = s.id
+      WHERE o.session_id = $1
+      ORDER BY o.created_at DESC
+    `, [sessionId]);
+    
+    console.log('Debug - Found orders:', result.rows.length);
+    
+    res.json({ orders: result.rows });
+  } catch (error) {
+    console.error('Get session orders error:', error);
     res.status(500).json({ error: error.message });
   }
 };
