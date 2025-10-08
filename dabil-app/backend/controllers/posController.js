@@ -16,47 +16,20 @@ exports.getCheckedInGuests = async (req, res) => {
         s.party_size,
         s.checked_in_at,
         u.name as guest_name,
-        u.phone,
+        u.email,  -- Use email instead of phone
         COUNT(o.id) as order_count,
         SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END) as pending_orders
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       LEFT JOIN orders o ON s.id = o.session_id
       WHERE s.restaurant_id = $1 AND s.status = $2
-      GROUP BY s.id, u.name, u.phone
+      GROUP BY s.id, u.name, u.email
       ORDER BY s.checked_in_at DESC
     `, [restaurantId, 'active']);
     
     res.json({ guests: result.rows });
   } catch (error) {
     console.error('Get checked-in guests error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getSessionOrders = async (req, res) => {
-  const pool = req.app.locals.db;
-  
-  try {
-    const { sessionId } = req.params;
-    
-    console.log('Debug - SessionId:', sessionId);
-    console.log('Debug - RestaurantId:', req.restaurantId);
-    
-    // Get orders for this session
-    const result = await pool.query(`
-      SELECT o.*, s.restaurant_id
-      FROM orders o
-      JOIN sessions s ON o.session_id = s.id
-      WHERE o.session_id = $1
-      ORDER BY o.created_at DESC
-    `, [sessionId]);
-    
-    console.log('Debug - Found orders:', result.rows.length);
-    
-    res.json({ orders: result.rows });
-  } catch (error) {
-    console.error('Get session orders error:', error);
     res.status(500).json({ error: error.message });
   }
 };
