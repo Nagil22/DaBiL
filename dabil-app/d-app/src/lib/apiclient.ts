@@ -1,4 +1,4 @@
-// Complete API Service with email/password authentication
+// Complete API Service with email/password authentication - FIXED
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dabil.onrender.com/api';
 
 // Types
@@ -55,7 +55,9 @@ class ApiService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('dabil_token') || localStorage.getItem('pos_token');
+      // FIXED: Check pos_token first for staff, then dabil_token for users
+      this.token = localStorage.getItem('pos_token') || localStorage.getItem('dabil_token');
+      console.log('🔑 ApiService initialized with token:', this.token ? 'Present' : 'Missing');
     }
   }
 
@@ -64,56 +66,66 @@ class ApiService {
       'Content-Type': 'application/json',
     };
     
+    // CRITICAL FIX: Reload token from localStorage on every request
+    // This ensures we always use the latest token
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('pos_token') || localStorage.getItem('dabil_token');
+    }
+    
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
+      console.log('🔐 Authorization header added:', headers.Authorization.substring(0, 20) + '...');
+    } else {
+      console.warn('⚠️ No token available for request');
     }
     
     return headers;
   }
 
-private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    
+    console.log('📡 API Request:', {
+      method: options.method || 'GET',
+      url,
+      hasAuth: !!this.token
     });
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
-      
-      // Convert technical errors to user-friendly messages
-      let userMessage = errorData.error;
-      
-      if (response.status === 401) {
-        userMessage = 'Please log in again - your session has expired';
-      } else if (response.status === 403) {
-        userMessage = 'You don\'t have permission to perform this action';
-      } else if (response.status === 404) {
-        userMessage = 'The requested information was not found';
-      } else if (response.status === 500) {
-        userMessage = 'Server error - please try again in a moment';
-      } else if (errorData.error?.includes('Database')) {
-        userMessage = 'Database connection issue - please try again';
-      } else if (errorData.error?.includes('Duplicate entry')) {
-        userMessage = 'This item already exists';
-      } else if (errorData.error?.includes('Insufficient')) {
-        userMessage = 'Insufficient wallet balance - please add funds';
+      console.log('📥 API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('❌ API Error Response:', errorData);
+        } catch {
+          errorData = { error: 'Request failed' };
+        }
+        
+        const errorMessage = errorData.error || `Request failed with status ${response.status}`;
+        throw new Error(errorMessage);
       }
-      
-      throw new Error(userMessage);
-    }
 
-    return response.json();
-  } catch (error) {
-    console.error('API Request failed:', error);
-    throw error;
+      return response.json();
+    } catch (error) {
+      console.error('❌ API Request failed:', error);
+      throw error;
+    }
   }
-}
+
   // Auth Methods - Updated for email/password
   async signup(data: { email: string; name: string; password: string }): Promise<AuthResponse> {
     const response = await this.makeRequest<AuthResponse>('/auth/signup', {
@@ -125,6 +137,7 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     if (typeof window !== 'undefined') {
       localStorage.setItem('dabil_token', response.token);
       localStorage.setItem('dabil_user', JSON.stringify(response.user));
+      console.log('✅ User signup successful, token saved');
     }
     
     return response;
@@ -140,33 +153,36 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     if (typeof window !== 'undefined') {
       localStorage.setItem('dabil_token', response.token);
       localStorage.setItem('dabil_user', JSON.stringify(response.user));
+      console.log('✅ User login successful, token saved');
     }
     
     return response;
   }
 
   async logout(): Promise<{ message: string }> {
-  try {
-    const response = await this.makeRequest<{ message: string }>('/auth/logout', {
-      method: 'POST',
-    });
-    return response;
-  } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
-  } finally {
-    this.token = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('dabil_token');
-      localStorage.removeItem('dabil_user');
-      localStorage.removeItem('pos_token');
-      localStorage.removeItem('pos_user');
+    try {
+      const response = await this.makeRequest<{ message: string }>('/auth/logout', {
+        method: 'POST',
+      });
+      return response;
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    } finally {
+      this.token = null;
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('dabil_token');
+        localStorage.removeItem('dabil_user');
+        localStorage.removeItem('pos_token');
+        localStorage.removeItem('pos_user');
+        console.log('🧹 Tokens cleared from localStorage');
+      }
     }
   }
-}
+
   async getAdminStats(): Promise<{ totalUsers: number; totalRevenue: number; activeUsers: number }> {
-  return this.makeRequest('/admin/stats');
-}
+    return this.makeRequest('/admin/stats');
+  }
 
   async getProfile(): Promise<{ user: User }> {
     return this.makeRequest('/auth/profile');
@@ -188,6 +204,8 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   // Staff Auth Methods
   async staffLogin(data: { email: string; password: string }): Promise<StaffResponse> {
+    console.log('🔐 Staff login attempt:', data.email);
+    
     const response = await this.makeRequest<StaffResponse>('/staff/login', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -195,8 +213,16 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     
     this.token = response.token;
     if (typeof window !== 'undefined') {
+      // CRITICAL: Store in pos_token for staff
       localStorage.setItem('pos_token', response.token);
       localStorage.setItem('pos_user', JSON.stringify(response.staff));
+      console.log('✅ Staff login successful, token saved to pos_token');
+      console.log('👤 Staff details:', {
+        id: response.staff.id,
+        name: response.staff.name,
+        role: response.staff.role,
+        restaurant_id: response.staff.restaurant_id
+      });
     }
     
     return response;
@@ -219,10 +245,10 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   }
 
   async deleteRestaurant(restaurantId: string): Promise<{ message: string }> {
-  return this.makeRequest(`/restaurants/${restaurantId}`, {
-    method: 'DELETE',
-  });
-}
+    return this.makeRequest(`/restaurants/${restaurantId}`, {
+      method: 'DELETE',
+    });
+  }
 
   async addMyMenuItem(data: {
     name: string;
@@ -237,25 +263,24 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   }
 
   async getMyStaff(): Promise<{ staff: any[] }> {
-  return this.makeRequest('/manager/staff');
-}
+    return this.makeRequest('/manager/staff');
+  }
 
-
- async createRestaurant(data: {
-  name: string;
-  restaurant_type: string;
-  cuisine_type: string;
-  address: string;
-  city: string;
-  phone: string;
-  email: string;
-  password: string;
-}): Promise<{ restaurant: Restaurant; message: string }> {
-  return this.makeRequest('/restaurants', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
+  async createRestaurant(data: {
+    name: string;
+    restaurant_type: string;
+    cuisine_type: string;
+    address: string;
+    city: string;
+    phone: string;
+    email: string;
+    password: string;
+  }): Promise<{ restaurant: Restaurant; message: string }> {
+    return this.makeRequest('/restaurants', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 
   async addMenuItem(restaurantId: string, data: {
     name: string;
@@ -281,11 +306,11 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     });
   }
 
-async checkOut(sessionId: string): Promise<any> {
-  return this.makeRequest(`/sessions/${sessionId}/checkout`, {
-    method: 'PUT',
-  });
-}
+  async checkOut(sessionId: string): Promise<any> {
+    return this.makeRequest(`/sessions/${sessionId}/checkout`, {
+      method: 'PUT',
+    });
+  }
 
   async getActiveSession(): Promise<any> {
     return this.makeRequest('/sessions/active');
@@ -310,17 +335,18 @@ async checkOut(sessionId: string): Promise<any> {
   }
 
   // POS Methods
-  async getCheckedInGuests(restaurantId: string): Promise<{ guests: any[] }> {
-    return this.makeRequest(`/pos/restaurant/${restaurantId}/guests`);
-  }
+async getCheckedInGuests(): Promise<{ guests: any[] }> {
+  console.log('🏪 Fetching checked-in guests for authenticated restaurant');
+  return this.makeRequest(`/pos/guests`);
+}
 
-  async getSessionOrders(sessionId: string): Promise<{ orders: any[] }> {
-    return this.makeRequest(`/pos/session/${sessionId}/orders`);
-  }
+async getSessionOrders(sessionId: string): Promise<{ orders: any[] }> {
+  return this.makeRequest(`/pos/session/${sessionId}/orders`);
+}
 
-  async getRestaurantMenu(restaurantId: string): Promise<{ menuItems: any[] }> {
-    return this.makeRequest(`/pos/restaurant/${restaurantId}/menu`);
-  }
+async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
+  return this.makeRequest(`/pos/menu`);
+}
 
   // Wallet Methods
   async getWalletBalance(): Promise<any> {
@@ -361,26 +387,26 @@ async checkOut(sessionId: string): Promise<any> {
   }
 
   async requestPaymentConfirmation(orderId: string): Promise<any> {
-  return this.makeRequest(`/orders/${orderId}/request-payment`, {
-    method: 'POST',
-  });
-}
+    return this.makeRequest(`/orders/${orderId}/request-payment`, {
+      method: 'POST',
+    });
+  }
 
-async checkPaymentStatus(orderId: string): Promise<any> {
-  return this.makeRequest(`/orders/${orderId}/payment-status`);
-}
+  async checkPaymentStatus(orderId: string): Promise<any> {
+    return this.makeRequest(`/orders/${orderId}/payment-status`);
+  }
 
-async confirmPayment(orderId: string): Promise<any> {
-  return this.makeRequest(`/orders/${orderId}/confirm-payment`, {
-    method: 'POST',
-  });
-}
+  async confirmPayment(orderId: string): Promise<any> {
+    return this.makeRequest(`/orders/${orderId}/confirm-payment`, {
+      method: 'POST',
+    });
+  }
 
-async declinePayment(orderId: string): Promise<any> {
-  return this.makeRequest(`/orders/${orderId}/decline-payment`, {
-    method: 'POST',
-  });
-}
+  async declinePayment(orderId: string): Promise<any> {
+    return this.makeRequest(`/orders/${orderId}/decline-payment`, {
+      method: 'POST',
+    });
+  }
 
   // Restaurant Manager Methods
   async getMyRestaurant(): Promise<{ restaurant: any }> {
@@ -390,31 +416,32 @@ async declinePayment(orderId: string): Promise<any> {
   async getMyRestaurantStats(): Promise<{ stats: any }> {
     return this.makeRequest('/manager/stats');
   }
-async getAdminPayouts(): Promise<{ payouts: any[] }> {
-  return this.makeRequest('/admin/payouts');
-}
 
-async getAdminPayoutHistory(limit: number = 20): Promise<{ payoutHistory: any[] }> {
-  return this.makeRequest(`/admin/payouts/history?limit=${limit}`);
-}
+  async getAdminPayouts(): Promise<{ payouts: any[] }> {
+    return this.makeRequest('/admin/payouts');
+  }
 
-async getManagerLoyaltyOverview(): Promise<{ 
-  restaurant_loyalty_stats: {
-    total_points_earned: number;
-    total_points_redeemed: number;
-    active_customers: number;
-    total_customer_spend: number;
-    average_points_per_customer: number;
-    points_earned_this_month: number;
-    total_sessions: number;
-    restaurant_name: string;
-  };
-  tierDistribution: any[];
-  topCustomers: any[];
-  monthlyTrend: any[];
-}> {
-  return this.makeRequest('/manager/loyalty-overview');
-}
+  async getAdminPayoutHistory(limit: number = 20): Promise<{ payoutHistory: any[] }> {
+    return this.makeRequest(`/admin/payouts/history?limit=${limit}`);
+  }
+
+  async getManagerLoyaltyOverview(): Promise<{ 
+    restaurant_loyalty_stats: {
+      total_points_earned: number;
+      total_points_redeemed: number;
+      active_customers: number;
+      total_customer_spend: number;
+      average_points_per_customer: number;
+      points_earned_this_month: number;
+      total_sessions: number;
+      restaurant_name: string;
+    };
+    tierDistribution: any[];
+    topCustomers: any[];
+    monthlyTrend: any[];
+  }> {
+    return this.makeRequest('/manager/loyalty-overview');
+  }
 
   async createMyStaff(data: {
     email: string;
@@ -430,12 +457,16 @@ async getManagerLoyaltyOverview(): Promise<{
 
   // Utility Methods
   isAuthenticated(): boolean {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('pos_token') || localStorage.getItem('dabil_token');
+      return !!token;
+    }
     return !!this.token;
   }
 
   getCurrentUser(): User | null {
     if (typeof window !== 'undefined') {
-      const userStr = localStorage.getItem('dabil_user') || localStorage.getItem('pos_user');
+      const userStr = localStorage.getItem('pos_user') || localStorage.getItem('dabil_user');
       return userStr ? JSON.parse(userStr) : null;
     }
     return null;
@@ -443,10 +474,26 @@ async getManagerLoyaltyOverview(): Promise<{
 
   setToken(token: string) {
     this.token = token;
+    console.log('🔑 Token manually set');
   }
 
-
-
+  // Debug method to check token status
+  debugTokenStatus() {
+    if (typeof window !== 'undefined') {
+      const posToken = localStorage.getItem('pos_token');
+      const dabilToken = localStorage.getItem('dabil_token');
+      const posUser = localStorage.getItem('pos_user');
+      const dabilUser = localStorage.getItem('dabil_user');
+      
+      console.log('🔍 Token Debug Status:', {
+        hasPostToken: !!posToken,
+        hasDabilToken: !!dabilToken,
+        currentToken: this.token?.substring(0, 20) + '...',
+        posUser: posUser ? JSON.parse(posUser) : null,
+        dabilUser: dabilUser ? JSON.parse(dabilUser) : null
+      });
+    }
+  }
 
   async testConnection(): Promise<{ status: string }> {
     return this.makeRequest('/health');

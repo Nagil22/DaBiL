@@ -31,17 +31,36 @@ exports.staffLogin = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
-    // Generate JWT with restaurant_id
+    // Generate JWT with proper structure
+    const tokenPayload = {
+      staffId: staff.id, 
+      userId: staff.id, // For compatibility with auth middleware
+      restaurantId: staff.restaurant_id,
+      role: staff.role,
+      email: staff.email
+    };
+    
     const token = jwt.sign(
-      { 
-        staffId: staff.id, 
-        userId: staff.id, // Add userId for compatibility
-        restaurantId: staff.restaurant_id,
-        role: staff.role 
-      }, 
+      tokenPayload, 
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
+    
+    // **CRITICAL FIX: Create session entry in user_sessions table**
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours from now
+    try {
+      await pool.query(
+        `INSERT INTO user_sessions (user_id, token, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE 
+         SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`,
+        [staff.id, token, expiresAt]
+      );
+      console.log('✅ Session created for staff:', staff.id);
+    } catch (sessionError) {
+      console.error('Failed to create session:', sessionError);
+      return res.status(500).json({ error: 'Failed to create session' });
+    }
     
     // Update last login
     await pool.query(
@@ -49,12 +68,27 @@ exports.staffLogin = async (req, res) => {
       [staff.id]
     );
     
-    // Remove sensitive data and add restaurant_id
-    delete staff.password_hash;
-    staff.restaurant_id = staff.restaurant_id; // Ensure it's included
+    // Remove sensitive data
+    const staffResponse = {
+      id: staff.id,
+      email: staff.email,
+      name: staff.name,
+      role: staff.role,
+      restaurant_id: staff.restaurant_id,
+      restaurant_name: staff.restaurant_name,
+      is_active: staff.is_active,
+      last_login_at: staff.last_login_at,
+      created_at: staff.created_at
+    };
+    
+    console.log('✅ Staff login successful:', {
+      staffId: staff.id,
+      restaurantId: staff.restaurant_id,
+      role: staff.role
+    });
     
     res.json({ 
-      staff, 
+      staff: staffResponse,
       token,
       message: 'Staff login successful'
     });

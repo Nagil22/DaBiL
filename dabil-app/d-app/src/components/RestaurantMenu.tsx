@@ -47,7 +47,7 @@ export const RestaurantMenu: React.FC<RestaurantMenuProps> = ({
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getRestaurantMenu(restaurant.id);
+      const response = await apiService.getRestaurantMenu();
       setMenuItems(response.menuItems);
     } catch (error: any) {
       console.error('Failed to fetch menu:', error);

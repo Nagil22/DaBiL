@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '@/components/NotificationSystem';
 import { QRScanner } from '../components/QRScanner';
 import { RestaurantMenu } from '../components/RestaurantMenu';
 import { SessionManagement } from '../components/SessionManagement';
@@ -10,7 +11,7 @@ import { LoyaltyPoints } from '../components/LoyaltyPoints';
 import { Receipt } from '../components/Receipt';
 import apiService from '../lib/apiclient';
 import { PaymentConfirmation } from '@/components/Paymentconfim';
-import { useNotifications } from '../components/NotificationSystem';
+
 
 // Brand colors extracted from logo
 const brandColors = {
@@ -34,6 +35,7 @@ interface User {
 }
 export default function DabilApp() {
   // State management
+  const { showToast, showModal, success, error, warning, info, confirm } = useNotifications();
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState<User | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -63,7 +65,6 @@ export default function DabilApp() {
   });
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [paymentOrderData, setPaymentOrderData] = useState<any>(null);
-  const { showToast, showModal, success, error, warning, info, confirm } = useNotifications();
   const [payoutsData, setPayoutsData] = useState<any[]>([]);
   const [payoutHistory, setPayoutHistory] = useState<any[]>([]);
   const [loyaltyOverview, setLoyaltyOverview] = useState<any>(null);
@@ -434,7 +435,7 @@ const verifyPayment = async (reference: string) => {
     
     // Fetch menu items
     if (restaurantResponse.restaurant?.id) {
-      const menuResponse = await apiService.getRestaurantMenu(restaurantResponse.restaurant.id);
+      const menuResponse = await apiService.getRestaurantMenu();
       setMenuItems(menuResponse.menuItems);
     }
   } catch (error: any) {
@@ -512,20 +513,18 @@ const handleAuth = async (data: {
           password: data.password 
         });
         
-        // Set user with staff data and determine role
         const userWithRole = {
           ...response.staff,
           role: response.staff.role === 'manager' ? 'restaurant_manager' : 'staff'
         } as User;
         setUser(userWithRole);
         
-        // Route based on actual role
         if (userWithRole.role === 'restaurant_manager') {
           setCurrentView('manager');
         } else {
           setCurrentView('pos');
         }
-      }  else {
+      } else {
         response = await apiService.login({ 
           email: data.email.toLowerCase(),
           password: data.password 
@@ -537,19 +536,28 @@ const handleAuth = async (data: {
         } as User;
         setUser(userWithRole);
         
-        // Route based on role according to FRD
         switch (userWithRole.role) {
           case 'admin':
             setCurrentView('admin');
             fetchRestaurants();
             break;
           case 'restaurant_manager':
-            setCurrentView('manager'); // Fix: Route to manager, not pos
+            setCurrentView('manager');
             break;
           case 'user':
           default:
             setCurrentView('home');
             fetchWalletBalance();
+            
+            // Check for pending QR check-in after user login
+            const pendingRestaurant = localStorage.getItem('pending_checkin_restaurant');
+            if (pendingRestaurant) {
+              console.log('Found pending check-in after login:', pendingRestaurant);
+              setTimeout(() => {
+                handleQRCheckIn(pendingRestaurant);
+              }, 500);
+              localStorage.removeItem('pending_checkin_restaurant');
+            }
             break;
         }
       }
@@ -571,8 +579,8 @@ const handleAuth = async (data: {
     
     setShowAuthModal(false);
     success(`${authMode === 'login' ? 'Login' : 'Account creation'} successful!`);
-  } catch (error: any) {
-    error(error.message || 'Authentication failed');
+  } catch (err: any) {
+    error(err.message || 'Authentication failed');
   } finally {
     setLoading(false);
   }
@@ -594,19 +602,24 @@ const handleAuth = async (data: {
 };
 
   // QR Scanner handler
- const handleQRScan = async (restaurantId: string) => {
+const handleQRScan = async (restaurantId: string) => {
+  console.log('QR Scan - Restaurant ID:', restaurantId);
+  
   // Close QR scanner immediately
   setShowQRScanner(false);
   
   if (!user) {
+    console.log('QR Scan - User not logged in, showing auth modal');
     setShowAuthModal(true);
+    // Store the restaurant ID for after login
+    localStorage.setItem('pending_checkin_restaurant', restaurantId);
     return;
   }
 
+  console.log('QR Scan - User logged in, proceeding with check-in');
   // Call the check-in handler
   await handleQRCheckIn(restaurantId);
 };
-
   // Role-based header
   const renderHeader = () => {
     const headerTitle = () => {

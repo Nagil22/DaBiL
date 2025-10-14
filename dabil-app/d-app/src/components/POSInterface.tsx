@@ -70,17 +70,20 @@ export const POSInterface: React.FC<POSInterfaceProps> = ({
     }
   };
 
-  const fetchGuests = async (showLoader = true) => {
-    if (showLoader) setLoading(true);
-    try {
-      const response = await apiService.getCheckedInGuests(restaurantId);
-      setGuests(response.guests);
-    } catch (error: any) {
-      console.error('Failed to fetch guests:', error);
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  };
+const fetchGuests = async (showLoader = true) => {
+  if (showLoader) setLoading(true);
+  try {
+    console.log('Fetching guests for authenticated restaurant');
+    const response = await apiService.getCheckedInGuests(); // No restaurantId needed
+    console.log('Guests response:', response);
+    setGuests(response.guests);
+  } catch (error: any) {
+    console.error('Failed to fetch guests:', error);
+    alert(`Failed to load guests: ${error.message}`);
+  } finally {
+    if (showLoader) setLoading(false);
+  }
+};
 
 const fetchGuestOrders = async (sessionId: string) => {
   try {
@@ -103,18 +106,19 @@ const fetchGuestOrders = async (sessionId: string) => {
   }
 };
 
-  const fetchMenuItems = async () => {
-    try {
-      const response = await apiService.getRestaurantMenu(restaurantId);
-      const itemsMap: Record<string, any> = {};
-      response.menuItems.forEach((item: any) => {
-        itemsMap[item.id] = item;
-      });
-      setMenuItems(itemsMap);
-    } catch (error: any) {
-      console.error('Failed to fetch menu:', error);
-    }
-  };
+const fetchMenuItems = async () => {
+  try {
+    const response = await apiService.getRestaurantMenu(); // No restaurantId needed
+    const itemsMap: Record<string, any> = {};
+    response.menuItems.forEach((item: any) => {
+      itemsMap[item.id] = item;
+    });
+    setMenuItems(itemsMap);
+  } catch (error: any) {
+    console.error('Failed to fetch menu:', error);
+  }
+};
+
 
 const handleGuestSelect = (guest: Guest) => {
   setSelectedGuest(guest);

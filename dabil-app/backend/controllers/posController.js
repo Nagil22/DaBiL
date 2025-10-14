@@ -1,12 +1,17 @@
-// controllers/posController.js
+// controllers/posController.js - FIXED VERSION
 exports.getCheckedInGuests = async (req, res) => {
   const pool = req.app.locals.db;
   
   try {
-    const restaurantId = req.restaurantId || req.params.restaurantId;
+    // Get restaurantId from authenticated staff
+    const restaurantId = req.restaurantId;
+    
+    console.log('🔐 POS Controller - Restaurant ID from auth:', restaurantId);
+    console.log('🔐 POS Controller - Staff ID:', req.staffId);
+    console.log('🔐 POS Controller - User Role:', req.userRole);
     
     if (!restaurantId) {
-      return res.status(400).json({ error: 'Restaurant ID not found' });
+      return res.status(400).json({ error: 'Restaurant ID not found. Please ensure you are properly authenticated as staff.' });
     }
     
     const result = await pool.query(`
@@ -17,7 +22,7 @@ exports.getCheckedInGuests = async (req, res) => {
         s.party_size,
         s.checked_in_at,
         u.name as guest_name,
-        u.email,  -- Use email instead of phone
+        u.email,
         COUNT(o.id) as order_count,
         SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END) as pending_orders
       FROM sessions s
@@ -28,23 +33,34 @@ exports.getCheckedInGuests = async (req, res) => {
       ORDER BY s.checked_in_at DESC
     `, [restaurantId, 'active']);
     
+    console.log('🔐 POS Controller - Found guests:', result.rows.length);
+    
     res.json({ guests: result.rows });
   } catch (error) {
     console.error('Get checked-in guests error:', error);
     res.status(500).json({ error: error.message });
   }
-};
+};;
 
 exports.getRestaurantMenu = async (req, res) => {
   const pool = req.app.locals.db;
   
   try {
-    const { restaurantId } = req.params;
+    // Get restaurantId from authenticated staff
+    const restaurantId = req.restaurantId;
+    
+    console.log('🔐 Menu Controller - Restaurant ID from auth:', restaurantId);
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Restaurant ID not found' });
+    }
     
     const result = await pool.query(
       'SELECT * FROM menu_items WHERE restaurant_id = $1 AND status = $2 AND is_available = $3 ORDER BY category, sort_order',
       [restaurantId, 'active', true]
     );
+    
+    console.log('🔐 Menu Controller - Found menu items:', result.rows.length);
     
     res.json({ menuItems: result.rows });
   } catch (error) {
@@ -53,14 +69,18 @@ exports.getRestaurantMenu = async (req, res) => {
   }
 };
 
+
 exports.getSessionOrders = async (req, res) => {
   const pool = req.app.locals.db;
   
   try {
     const { sessionId } = req.params;
     
-    console.log('Debug - SessionId:', sessionId);
-    console.log('Debug - RestaurantId:', req.restaurantId);
+    console.log('📦 Debug - Fetching orders:', {
+      sessionId,
+      restaurantId: req.restaurantId,
+      staffId: req.staffId
+    });
     
     // Get orders for this session
     const result = await pool.query(`
@@ -71,11 +91,19 @@ exports.getSessionOrders = async (req, res) => {
       ORDER BY o.created_at DESC
     `, [sessionId]);
     
-    console.log('Debug - Found orders:', result.rows.length);
+    // Verify staff has access to this restaurant's orders
+    if (req.staffId && result.rows.length > 0) {
+      const orderRestaurantId = result.rows[0].restaurant_id;
+      if (orderRestaurantId !== req.restaurantId) {
+        return res.status(403).json({ error: 'Access denied to this session' });
+      }
+    }
+    
+    console.log('✅ Found orders:', result.rows.length);
     
     res.json({ orders: result.rows });
   } catch (error) {
-    console.error('Get session orders error:', error);
+    console.error('❌ Get session orders error:', error);
     res.status(500).json({ error: error.message });
   }
 };
