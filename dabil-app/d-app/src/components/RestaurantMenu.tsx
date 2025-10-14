@@ -79,40 +79,57 @@ export const RestaurantMenu: React.FC<RestaurantMenuProps> = ({
     return Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   };
 
-  const handlePlaceOrder = async () => {
-    const orderItems = Object.entries(cart)
-      .filter(([_, quantity]) => quantity > 0)
-      .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+const handlePlaceOrder = async () => {
+  const orderItems = Object.entries(cart)
+    .filter(([_, quantity]) => quantity > 0)
+    .map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+  
+  if (orderItems.length === 0) {
+    alert('Please add items to your order');
+    return;
+  }
+
+  try {
+    setPlacing(true);
     
-    if (orderItems.length === 0) {
-      alert('Please add items to your order');
+    // Calculate total first
+    const total = getCartTotal();
+    
+    // Check wallet balance before placing order
+    const balanceResponse = await apiService.getWalletBalance();
+    const currentBalance = balanceResponse.balance;
+    
+    if (currentBalance < total) {
+      alert(`Insufficient balance. Order total: ₦${total.toLocaleString()}, Available: ₦${currentBalance.toLocaleString()}`);
+      setPlacing(false);
       return;
     }
+    
+    const response = await apiService.createOrder({
+      sessionId: sessionId,
+      items: orderItems,
+      notes: notes || undefined
+    });
 
-    try {
-      setPlacing(true);
-      
-      const response = await apiService.createOrder({
-        sessionId: sessionId,
-        items: orderItems,
-        notes: notes || undefined
-      });
-
-      // Clear cart after successful order
-      setCart({});
-      setNotes('');
-      
-      // Call parent callback with order data
-      onOrderPlace(response.order);
-      
-      alert(`Order placed successfully! Order #${response.order.order_number}`);
-      
-    } catch (error: any) {
+    // Clear cart after successful order
+    setCart({});
+    setNotes('');
+    
+    // Call parent callback with order data
+    onOrderPlace(response.order);
+    
+    alert(`Order placed successfully! Order #${response.order.order_number}`);
+    
+  } catch (error: any) {
+    if (error.message.includes('Insufficient balance')) {
+      alert(`Insufficient balance: ${error.message}`);
+    } else {
       alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setPlacing(false);
     }
-  };
+  } finally {
+    setPlacing(false);
+  }
+};
 
   // Group menu items by category
   const groupedItems = menuItems.reduce((groups, item) => {

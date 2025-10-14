@@ -1,7 +1,7 @@
 // Update middleware/auth.js to handle both user and staff tokens
 const jwt = require('jsonwebtoken');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -10,6 +10,16 @@ module.exports = (req, res, next) => {
     }
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if session exists and is valid
+    const sessionCheck = await req.app.locals.db.query(
+      'SELECT * FROM user_sessions WHERE user_id = $1 AND token = $2 AND expires_at > NOW()',
+      [decoded.userId, token]
+    );
+    
+    if (sessionCheck.rows.length === 0) {
+      return res.status(401).json({ error: 'Session expired or invalid. Please login again.' });
+    }
     
     // Handle both user and staff tokens
     if (decoded.userId) {

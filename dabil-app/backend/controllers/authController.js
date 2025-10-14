@@ -71,47 +71,51 @@ exports.login = async (req, res) => {
   
   try {
     const { email, password } = req.body;
-    console.log('Login attempt:', { email, password });
     
     // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
     
+    // Convert email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase();
+    
     // Find user
-    console.log('Searching for user with email:', email.toLowerCase());
     const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1 AND status = $2',
-      [email.toLowerCase(), 'active']
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND status = $2',
+      [normalizedEmail, 'active']
     );
     
-    console.log('Database query result:', result.rows.length, 'users found');
-    if (result.rows.length > 0) {
-      console.log('Found user:', { id: result.rows[0].id, email: result.rows[0].email, role: result.rows[0].role });
-    }
-    
     if (result.rows.length === 0) {
-      console.log('No user found with email:', email.toLowerCase());
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
     const user = result.rows[0];
     
     // Verify password
-    console.log('Comparing password with hash...');
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-    console.log('Password comparison result:', isPasswordValid);
     
     if (!isPasswordValid) {
-      console.log('Password comparison failed');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    
+    // Check if user already has an active session and remove it
+    await pool.query(
+      'DELETE FROM user_sessions WHERE user_id = $1',
+      [user.id]
+    );
     
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email }, 
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
+    );
+    
+    // Store session in database
+    await pool.query(
+      'INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'7 days\')',
+      [user.id, token]
     );
     
     // Remove sensitive data
@@ -124,6 +128,23 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed. Please try again.' });
+  }
+};
+
+// Add logout function to authController.js
+exports.logout = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    await pool.query(
+      'DELETE FROM user_sessions WHERE user_id = $1',
+      [req.userId]
+    );
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
     res.status(500).json({ error: error.message });
   }
 };

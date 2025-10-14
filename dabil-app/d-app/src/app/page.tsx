@@ -588,14 +588,20 @@ const fetchPayoutsData = async () => {
   }
 };
 
-  const handleLogout = () => {
+ const handleLogout = async () => {
+  try {
+    await apiService.logout();
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Clear client-side data
     setUser(null);
     setActiveSession(null);
     setSelectedRestaurant(null);
     setCurrentView('home');
     setWalletBalance(0);
-    apiService.logout();
-  };
+  }
+};
 
   // QR Scanner handler
  const handleQRScan = async (restaurantId: string) => {

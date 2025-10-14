@@ -15,16 +15,19 @@ exports.createOrder = async (req, res) => {
       }
     }
     
-    // FIXED: For staff users, don't filter by user_id - they can create orders for any session at their restaurant
+    // Get session with user info
     const sessionResult = await pool.query(
-      'SELECT id, restaurant_id, user_id FROM sessions WHERE id = $1 AND status = $2',
+      'SELECT s.*, u.id as user_id FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.id = $1 AND s.status = $2',
       [sessionId, 'active']
     );
     
     if (sessionResult.rows.length === 0) {
       return res.status(404).json({ error: 'Active session not found' });
     }
-    // Calculate totals
+    
+    const session = sessionResult.rows[0];
+    
+    // Calculate totals and check balance
     let subtotal = 0;
     const menuItemIds = items.map(item => item.menuItemId);
     
@@ -46,7 +49,26 @@ exports.createOrder = async (req, res) => {
       }
     });
     
-    const totalAmount = subtotal; // No tax/service charge for MVP
+    const totalAmount = subtotal;
+    
+    // Check wallet balance before creating order
+    const walletResult = await pool.query(
+      'SELECT balance FROM wallets WHERE user_id = $1',
+      [session.user_id]
+    );
+    
+    if (walletResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Wallet not found' });
+    }
+    
+    const currentBalance = parseFloat(walletResult.rows[0].balance);
+    
+    if (currentBalance < totalAmount) {
+      return res.status(400).json({ 
+        error: `Insufficient balance. Order total: ₦${totalAmount.toLocaleString()}, Available: ₦${currentBalance.toLocaleString()}` 
+      });
+    }
+    
     const orderNumber = `ORD${Date.now()}`;
     
     // Create order

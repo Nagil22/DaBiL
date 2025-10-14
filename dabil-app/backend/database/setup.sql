@@ -467,6 +467,20 @@ WHERE o.status = 'served'
 GROUP BY r.id, r.name, DATE(o.created_at)
 ORDER BY sale_date DESC;
 
+-- Add this to your setup.sql or run separately
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+
 -- =====================================================
 -- SETUP COMPLETE MESSAGE
 -- =====================================================

@@ -145,6 +145,25 @@ private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     return response;
   }
 
+  async logout(): Promise<{ message: string }> {
+  try {
+    const response = await this.makeRequest<{ message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+    return response;
+  } catch (error) {
+    console.error('Logout error:', error);
+    throw error;
+  } finally {
+    this.token = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dabil_token');
+      localStorage.removeItem('dabil_user');
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_user');
+    }
+  }
+}
   async getAdminStats(): Promise<{ totalUsers: number; totalRevenue: number; activeUsers: number }> {
   return this.makeRequest('/admin/stats');
 }
@@ -426,15 +445,8 @@ async getManagerLoyaltyOverview(): Promise<{
     this.token = token;
   }
 
- logout() {
-  this.token = null;
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('dabil_token');
-    localStorage.removeItem('dabil_user');
-    localStorage.removeItem('pos_token');
-    localStorage.removeItem('pos_user'); // Fix: change removeUser to removeItem
-  }
-}
+
+
 
   async testConnection(): Promise<{ status: string }> {
     return this.makeRequest('/health');
