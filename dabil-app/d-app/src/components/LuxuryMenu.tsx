@@ -44,7 +44,7 @@ export const LuxuryMenuSelector: React.FC<LuxuryMenuSelectorProps> = ({
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getRestaurantMenu(restaurantId);
+      const response = await apiService.getRestaurantMenu();
       setMenuItems(response.menuItems);
     } catch (error: any) {
       console.error('Failed to fetch menu:', error);
