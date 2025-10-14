@@ -78,7 +78,10 @@ useEffect(() => {
   if (token && userData) {
     const parsedUser = JSON.parse(userData);
     setUser(parsedUser);
-    apiService.setToken(token);
+    // Determine user type based on which token is present
+    const userType: 'user' | 'staff' =
+      localStorage.getItem('dabil_token') ? 'user' : 'staff';
+    apiService.setToken(token, userType);
     
     // Route based on role according to FRD
     switch (parsedUser.role) {
@@ -333,11 +336,22 @@ const renderAdminPayouts = () => {
 };
 
 const handleQRCheckIn = async (restaurantId: string) => {
-  if (!user) {
-    setShowAuthModal(true);
+  // Check if current user is staff - staff can't check in as customers
+  if (user && (user.role === 'staff' || user.role === 'waiter' || user.role === 'cashier' || user.role === 'chef')) {
+    error('Staff members cannot check in as customers. Please use a customer account.');
     return;
   }
 
+  if (!user) {
+    console.log('QR Scan - User not logged in, showing auth modal');
+    setShowAuthModal(true);
+    // Store the restaurant ID for after login
+    localStorage.setItem('pending_checkin_restaurant', restaurantId);
+    return;
+  }
+
+  console.log('QR Scan - User logged in, proceeding with check-in');
+  
   try {
     setLoading(true);
     
@@ -365,6 +379,7 @@ const handleQRCheckIn = async (restaurantId: string) => {
       console.log('No active session found, creating new one');
     }
     
+    // IMPORTANT: Use user token for check-in, not staff token
     const response = await apiService.checkIn({ 
       restaurantId: restaurantId,
       tableNumber: undefined,
@@ -380,7 +395,6 @@ const handleQRCheckIn = async (restaurantId: string) => {
     }, 100);
     
   } catch (error: any) {
-   
     error('Check-in Failed', error.message || 'Check-in failed. Please try again.');
   } finally {
     setLoading(false);
@@ -562,6 +576,7 @@ const handleAuth = async (data: {
         }
       }
     } else {
+      // Signup - always create regular users
       response = await apiService.signup({
         email: data.email.toLowerCase(),
         name: data.name,
@@ -575,6 +590,16 @@ const handleAuth = async (data: {
       setUser(userWithRole);
       setCurrentView('home');
       fetchWalletBalance();
+      
+      // Check for pending QR check-in after signup
+      const pendingRestaurant = localStorage.getItem('pending_checkin_restaurant');
+      if (pendingRestaurant) {
+        console.log('Found pending check-in after signup:', pendingRestaurant);
+        setTimeout(() => {
+          handleQRCheckIn(pendingRestaurant);
+        }, 500);
+        localStorage.removeItem('pending_checkin_restaurant');
+      }
     }
     
     setShowAuthModal(false);
@@ -585,7 +610,6 @@ const handleAuth = async (data: {
     setLoading(false);
   }
 };
-
  const handleLogout = async () => {
   try {
     await apiService.logout();

@@ -34,7 +34,7 @@ exports.staffLogin = async (req, res) => {
     // Generate JWT with proper structure
     const tokenPayload = {
       staffId: staff.id, 
-      userId: staff.id, // For compatibility with auth middleware
+      userId: staff.id, // For compatibility
       restaurantId: staff.restaurant_id,
       role: staff.role,
       email: staff.email
@@ -46,23 +46,7 @@ exports.staffLogin = async (req, res) => {
       { expiresIn: '8h' }
     );
     
-    // **CRITICAL FIX: Create session entry in user_sessions table**
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours from now
-    try {
-      await pool.query(
-        `INSERT INTO user_sessions (user_id, token, expires_at)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (user_id) DO UPDATE 
-         SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`,
-        [staff.id, token, expiresAt]
-      );
-      console.log('✅ Session created for staff:', staff.id);
-    } catch (sessionError) {
-      console.error('Failed to create session:', sessionError);
-      return res.status(500).json({ error: 'Failed to create session' });
-    }
-    
-    // Update last login
+    // Update last login (REMOVED session creation)
     await pool.query(
       'UPDATE restaurant_staff SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1',
       [staff.id]
@@ -80,12 +64,6 @@ exports.staffLogin = async (req, res) => {
       last_login_at: staff.last_login_at,
       created_at: staff.created_at
     };
-    
-    console.log('✅ Staff login successful:', {
-      staffId: staff.id,
-      restaurantId: staff.restaurant_id,
-      role: staff.role
-    });
     
     res.json({ 
       staff: staffResponse,

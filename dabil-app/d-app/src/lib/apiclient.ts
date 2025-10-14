@@ -52,50 +52,79 @@ interface StaffResponse {
 // API Service Class
 class ApiService {
   private token: string | null = null;
+  private userType: 'user' | 'staff' | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // FIXED: Check pos_token first for staff, then dabil_token for users
-      this.token = localStorage.getItem('pos_token') || localStorage.getItem('dabil_token');
-      console.log('🔑 ApiService initialized with token:', this.token ? 'Present' : 'Missing');
+      this.loadTokens();
     }
   }
 
-  private getHeaders() {
+  private loadTokens() {
+    if (typeof window !== 'undefined') {
+      // Check for staff token first, then user token
+      const posToken = localStorage.getItem('pos_token');
+      const dabilToken = localStorage.getItem('dabil_token');
+      
+      if (posToken) {
+        this.token = posToken;
+        this.userType = 'staff';
+        console.log('🔑 ApiService initialized with STAFF token');
+      } else if (dabilToken) {
+        this.token = dabilToken;
+        this.userType = 'user';
+        console.log('🔑 ApiService initialized with USER token');
+      } else {
+        console.log('🔑 ApiService initialized with NO token');
+      }
+    }
+  }
+
+  private getHeaders(forceUserToken = false) {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     
-    // CRITICAL FIX: Reload token from localStorage on every request
-    // This ensures we always use the latest token
+    // CRITICAL FIX: Reload tokens from localStorage on every request
+    // This ensures we always use the correct token
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('pos_token') || localStorage.getItem('dabil_token');
-    }
-    
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-      console.log('🔐 Authorization header added:', headers.Authorization.substring(0, 20) + '...');
-    } else {
-      console.warn('⚠️ No token available for request');
+      this.loadTokens();
+      
+      // If forceUserToken is true, use user token even if staff token exists
+      if (forceUserToken) {
+        const userToken = localStorage.getItem('dabil_token');
+        if (userToken) {
+          headers.Authorization = `Bearer ${userToken}`;
+          console.log('🔐 Using USER token (forced) for request');
+        } else {
+          console.warn('⚠️ No user token available for forced user request');
+        }
+      } else if (this.token) {
+        headers.Authorization = `Bearer ${this.token}`;
+        console.log(`🔐 Using ${this.userType} token for request`);
+      } else {
+        console.warn('⚠️ No token available for request');
+      }
     }
     
     return headers;
   }
 
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}, forceUserToken = false): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     
     console.log('📡 API Request:', {
       method: options.method || 'GET',
       url,
-      hasAuth: !!this.token
+      userType: this.userType,
+      forceUserToken
     });
     
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
-          ...this.getHeaders(),
+          ...this.getHeaders(forceUserToken),
           ...options.headers,
         },
       });
@@ -134,10 +163,14 @@ class ApiService {
     });
     
     this.token = response.token;
+    this.userType = 'user';
     if (typeof window !== 'undefined') {
       localStorage.setItem('dabil_token', response.token);
       localStorage.setItem('dabil_user', JSON.stringify(response.user));
-      console.log('✅ User signup successful, token saved');
+      // Clear any staff tokens when user logs in
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_user');
+      console.log('✅ User signup successful, user token saved');
     }
     
     return response;
@@ -150,10 +183,14 @@ class ApiService {
     });
     
     this.token = response.token;
+    this.userType = 'user';
     if (typeof window !== 'undefined') {
       localStorage.setItem('dabil_token', response.token);
       localStorage.setItem('dabil_user', JSON.stringify(response.user));
-      console.log('✅ User login successful, token saved');
+      // Clear any staff tokens when user logs in
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_user');
+      console.log('✅ User login successful, user token saved');
     }
     
     return response;
@@ -161,7 +198,8 @@ class ApiService {
 
   async logout(): Promise<{ message: string }> {
     try {
-      const response = await this.makeRequest<{ message: string }>('/auth/logout', {
+      const endpoint = this.userType === 'staff' ? '/staff/logout' : '/auth/logout';
+      const response = await this.makeRequest<{ message: string }>(endpoint, {
         method: 'POST',
       });
       return response;
@@ -170,12 +208,13 @@ class ApiService {
       throw error;
     } finally {
       this.token = null;
+      this.userType = null;
       if (typeof window !== 'undefined') {
         localStorage.removeItem('dabil_token');
         localStorage.removeItem('dabil_user');
         localStorage.removeItem('pos_token');
         localStorage.removeItem('pos_user');
-        console.log('🧹 Tokens cleared from localStorage');
+        console.log('🧹 All tokens cleared from localStorage');
       }
     }
   }
@@ -212,10 +251,14 @@ class ApiService {
     });
     
     this.token = response.token;
+    this.userType = 'staff';
     if (typeof window !== 'undefined') {
       // CRITICAL: Store in pos_token for staff
       localStorage.setItem('pos_token', response.token);
       localStorage.setItem('pos_user', JSON.stringify(response.staff));
+      // Clear any user tokens when staff logs in
+      localStorage.removeItem('dabil_token');
+      localStorage.removeItem('dabil_user');
       console.log('✅ Staff login successful, token saved to pos_token');
       console.log('👤 Staff details:', {
         id: response.staff.id,
@@ -294,26 +337,29 @@ class ApiService {
     });
   }
 
-  // Session Methods
+  // Session Methods - CRITICAL: These should use USER tokens
   async checkIn(data: { 
     restaurantId: string; 
     tableNumber?: number; 
     partySize?: number; 
   }): Promise<any> {
+    // FORCE user token for check-in operations
     return this.makeRequest('/sessions/checkin', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, true); // true = forceUserToken
   }
 
   async checkOut(sessionId: string): Promise<any> {
+    // FORCE user token for check-out operations
     return this.makeRequest(`/sessions/${sessionId}/checkout`, {
       method: 'PUT',
-    });
+    }, true);
   }
 
   async getActiveSession(): Promise<any> {
-    return this.makeRequest('/sessions/active');
+    // FORCE user token for session operations
+    return this.makeRequest('/sessions/active', {}, true);
   }
 
   // Order Methods
@@ -334,38 +380,42 @@ class ApiService {
     });
   }
 
-  // POS Methods
-async getCheckedInGuests(): Promise<{ guests: any[] }> {
-  console.log('🏪 Fetching checked-in guests for authenticated restaurant');
-  return this.makeRequest(`/pos/guests`);
-}
+  // POS Methods - These should use STAFF tokens
+  async getCheckedInGuests(): Promise<{ guests: any[] }> {
+    console.log('🏪 Fetching checked-in guests for authenticated restaurant');
+    return this.makeRequest(`/pos/guests`);
+  }
 
-async getSessionOrders(sessionId: string): Promise<{ orders: any[] }> {
-  return this.makeRequest(`/pos/session/${sessionId}/orders`);
-}
+  async getSessionOrders(sessionId: string): Promise<{ orders: any[] }> {
+    return this.makeRequest(`/pos/session/${sessionId}/orders`);
+  }
 
-async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
-  return this.makeRequest(`/pos/menu`);
-}
+  async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
+    return this.makeRequest(`/pos/menu`);
+  }
 
-  // Wallet Methods
+  // Wallet Methods - These should use USER tokens
   async getWalletBalance(): Promise<any> {
-    return this.makeRequest('/wallet/balance');
+    // FORCE user token for wallet operations
+    return this.makeRequest('/wallet/balance', {}, true);
   }
 
   async fundWallet(data: { amount: number; email: string }): Promise<any> {
+    // FORCE user token for wallet operations
     return this.makeRequest('/wallet/fund', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, true);
   }
 
   async verifyPayment(reference: string): Promise<any> {
-    return this.makeRequest(`/wallet/verify/${reference}`);
+    // FORCE user token for wallet operations
+    return this.makeRequest(`/wallet/verify/${reference}`, {}, true);
   }
 
   async getTransactions(limit = 20, offset = 0): Promise<{ transactions: any[] }> {
-    return this.makeRequest(`/wallet/transactions?limit=${limit}&offset=${offset}`);
+    // FORCE user token for wallet operations
+    return this.makeRequest(`/wallet/transactions?limit=${limit}&offset=${offset}`, {}, true);
   }
 
   async debitWallet(data: { 
@@ -373,17 +423,19 @@ async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
     orderId?: string; 
     description: string 
   }): Promise<any> {
+    // FORCE user token for wallet operations
     return this.makeRequest('/wallet/debit', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, true);
   }
 
   async redeemPoints(data: { points: number }): Promise<any> {
+    // FORCE user token for wallet operations
     return this.makeRequest('/wallet/redeem', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, true);
   }
 
   async requestPaymentConfirmation(orderId: string): Promise<any> {
@@ -472,9 +524,44 @@ async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
     return null;
   }
 
-  setToken(token: string) {
+  getUserType(): 'user' | 'staff' | null {
+    return this.userType;
+  }
+
+  setToken(token: string, userType: 'user' | 'staff') {
     this.token = token;
-    console.log('🔑 Token manually set');
+    this.userType = userType;
+    console.log(`🔑 ${userType.toUpperCase()} token manually set`);
+  }
+
+  // Method to switch to user token for specific operations
+  useUserToken(): boolean {
+    if (typeof window !== 'undefined') {
+      const userToken = localStorage.getItem('dabil_token');
+      if (userToken) {
+        this.token = userToken;
+        this.userType = 'user';
+        console.log('🔄 Switched to USER token');
+        return true;
+      }
+    }
+    console.warn('⚠️ No user token available for switch');
+    return false;
+  }
+
+  // Method to switch to staff token for specific operations  
+  useStaffToken(): boolean {
+    if (typeof window !== 'undefined') {
+      const staffToken = localStorage.getItem('pos_token');
+      if (staffToken) {
+        this.token = staffToken;
+        this.userType = 'staff';
+        console.log('🔄 Switched to STAFF token');
+        return true;
+      }
+    }
+    console.warn('⚠️ No staff token available for switch');
+    return false;
   }
 
   // Debug method to check token status
@@ -489,6 +576,7 @@ async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
         hasPostToken: !!posToken,
         hasDabilToken: !!dabilToken,
         currentToken: this.token?.substring(0, 20) + '...',
+        currentUserType: this.userType,
         posUser: posUser ? JSON.parse(posUser) : null,
         dabilUser: dabilUser ? JSON.parse(dabilUser) : null
       });
