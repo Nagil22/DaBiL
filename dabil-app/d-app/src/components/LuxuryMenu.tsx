@@ -37,23 +37,40 @@ export const LuxuryMenuSelector: React.FC<LuxuryMenuSelectorProps> = ({
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
 
-  useEffect(() => {
-    fetchMenuItems();
-  }, [restaurantId]);
 
-  const fetchMenuItems = async () => {
+  const fetchMenu = async () => {
     try {
-      setLoading(true);
-      const response = await apiService.getRestaurantMenu();
-      setMenuItems(response.menuItems);
+      console.log('🔍 Fetching menu for restaurant:', restaurantId);
+      
+      // Use the public restaurant endpoint to get menu items
+      const response = await apiService.getRestaurant(restaurantId);
+      
+      // The menu items are included in the restaurant response
+      const menuItemsFromRestaurant = response.restaurant.menu_items || [];
+      console.log('✅ Menu items from restaurant:', menuItemsFromRestaurant.length);
+      
+      setMenuItems(menuItemsFromRestaurant);
     } catch (error: any) {
       console.error('Failed to fetch menu:', error);
-      alert('Failed to load menu items');
+      
+      // Fallback: Try the POS endpoint if available (this will likely fail for users)
+      try {
+        console.log('🔄 Trying fallback menu fetch...');
+        const fallbackResponse = await apiService.getRestaurantMenu();
+        setMenuItems(fallbackResponse.menuItems);
+      } catch (fallbackError) {
+        console.error('Fallback menu fetch also failed:', fallbackError);
+        setMenuItems([]);
+      }
     } finally {
-      setLoading(false);
+      setLoading(false); // Make sure to set loading to false in all cases
     }
   };
 
+  // Add this useEffect to call fetchMenu when component mounts
+  useEffect(() => {
+    fetchMenu();
+  }, [restaurantId]);
   const addToCart = (itemId: string) => {
     setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
   };

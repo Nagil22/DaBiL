@@ -390,9 +390,15 @@ class ApiService {
     return this.makeRequest(`/pos/session/${sessionId}/orders`);
   }
 
-  async getRestaurantMenu(): Promise<{ menuItems: any[] }> {
-    return this.makeRequest(`/pos/menu`);
+async getRestaurantMenu(restaurantId?: string): Promise<{ menuItems: any[] }> {
+  if (restaurantId) {
+    console.log('🔐 Using POS menu with restaurant_id query param');
+    return this.makeRequest(`/pos/menu?restaurant_id=${restaurantId}`, {}, true);
   }
+  
+  console.log('🔐 Using POS menu endpoint for authenticated restaurant');
+  return this.makeRequest(`/pos/menu`);
+}
 
   // Wallet Methods - These should use USER tokens
   async getWalletBalance(): Promise<any> {

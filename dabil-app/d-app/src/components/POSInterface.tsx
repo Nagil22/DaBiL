@@ -108,7 +108,8 @@ const fetchGuestOrders = async (sessionId: string) => {
 
 const fetchMenuItems = async () => {
   try {
-    const response = await apiService.getRestaurantMenu(); // No restaurantId needed
+    // For staff, use the POS endpoint without restaurantId
+    const response = await apiService.getRestaurantMenu();
     const itemsMap: Record<string, any> = {};
     response.menuItems.forEach((item: any) => {
       itemsMap[item.id] = item;
