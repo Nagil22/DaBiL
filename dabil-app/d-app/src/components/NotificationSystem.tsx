@@ -228,12 +228,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [showToast]);
 
   const error = useCallback((title: string, message?: string) => {
-    showModal('error', title, message || 'Please try again or contact support if the problem persists.');
-  }, [showModal]);
+    showToast('error', title, message || 'Please try again or contact support if the problem persists.');
+  }, [showToast]);
 
   const warning = useCallback((title: string, message?: string) => {
-    showModal('warning', title, message || 'Please review and try again.');
-  }, [showModal]);
+    showToast('warning', title, message || 'Please review and try again.');
+  }, [showToast]);
 
   const info = useCallback((title: string, message?: string) => {
     showToast('info', title, message);

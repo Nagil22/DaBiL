@@ -340,7 +340,6 @@ const handleQRCheckIn = async (restaurantId: string) => {
   try {
     setLoading(true);
     
-    // Get restaurant details first
     const restaurantResponse = await apiService.getRestaurant(restaurantId);
     const restaurant = restaurantResponse.restaurant;
     
@@ -348,18 +347,15 @@ const handleQRCheckIn = async (restaurantId: string) => {
     try {
       const activeSessionResponse = await apiService.getActiveSession();
       if (activeSessionResponse.session) {
-        // If session is for same restaurant, continue it
         if (activeSessionResponse.session.restaurant_id === restaurantId) {
           setActiveSession(activeSessionResponse.session);
           setSelectedRestaurant(restaurant);
           setCurrentView('home');
-          
           setTimeout(() => {
             success(`Welcome back to ${restaurant.name}! Continuing your session.`);
           }, 100);
           return;
         } else {
-          // End previous session and start new one
           await apiService.checkOut(activeSessionResponse.session.id);
           success(`Checked out from previous restaurant. Starting new session at ${restaurant.name}.`);
         }
@@ -368,7 +364,6 @@ const handleQRCheckIn = async (restaurantId: string) => {
       console.log('No active session found, creating new one');
     }
     
-    // Create new session
     const response = await apiService.checkIn({ 
       restaurantId: restaurantId,
       tableNumber: undefined,
@@ -384,7 +379,8 @@ const handleQRCheckIn = async (restaurantId: string) => {
     }, 100);
     
   } catch (error: any) {
-    success(error.message || 'Check-in failed. Please try again.');
+   
+    error('Check-in Failed', error.message || 'Check-in failed. Please try again.');
   } finally {
     setLoading(false);
   }
@@ -397,19 +393,16 @@ const verifyPayment = async (reference: string) => {
     const response = await apiService.verifyPayment(reference);
     
     if (response.success) {
-      // Update wallet balance
       setWalletBalance(response.newBalance);
-      
-      // Show success message without loyalty points
       success(`Payment successful! ₦${response.amount.toLocaleString()} added to your wallet.`);
-      
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
-      success('Payment verification failed. Please contact support if money was debited.');
+      // FIX: Change from success() to error() for payment failures
+      error('Payment Failed', 'Payment verification failed. Please contact support if money was debited.');
     }
   } catch (error: any) {
-    success(`Payment verification failed: ${error.message}`);
+    // FIX: Change from success() to error() for payment errors
+    error('Payment Error', `Payment verification failed: ${error.message}`);
   } finally {
     setLoading(false);
   }
@@ -502,7 +495,7 @@ const fetchPayoutsData = async () => {
   };
 
   // Authentication handlers
-  const handleAuth = async (data: { 
+const handleAuth = async (data: { 
   email: string; 
   name: string; 
   password: string; 
@@ -514,9 +507,8 @@ const fetchPayoutsData = async () => {
     
     if (authMode === 'login') {
       if (data.loginType === 'staff') {
-        // Staff login - could be restaurant_manager or staff
         response = await apiService.staffLogin({ 
-          email: data.email, 
+          email: data.email.toLowerCase(),
           password: data.password 
         });
         
@@ -533,10 +525,9 @@ const fetchPayoutsData = async () => {
         } else {
           setCurrentView('pos');
         }
-      } else {
-        // Regular user/admin login
+      }  else {
         response = await apiService.login({ 
-          email: data.email, 
+          email: data.email.toLowerCase(),
           password: data.password 
         });
         
@@ -563,9 +554,8 @@ const fetchPayoutsData = async () => {
         }
       }
     } else {
-      // Signup logic remains the same
       response = await apiService.signup({
-        email: data.email,
+        email: data.email.toLowerCase(),
         name: data.name,
         password: data.password
       });
@@ -582,7 +572,7 @@ const fetchPayoutsData = async () => {
     setShowAuthModal(false);
     success(`${authMode === 'login' ? 'Login' : 'Account creation'} successful!`);
   } catch (error: any) {
-    success(error.message || 'Authentication failed');
+    error(error.message || 'Authentication failed');
   } finally {
     setLoading(false);
   }

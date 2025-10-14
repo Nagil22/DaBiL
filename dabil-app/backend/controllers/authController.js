@@ -99,23 +99,11 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    // Check if user already has an active session and remove it
-    await pool.query(
-      'DELETE FROM user_sessions WHERE user_id = $1',
-      [user.id]
-    );
-    
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email }, 
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
-    );
-    
-    // Store session in database
-    await pool.query(
-      'INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'7 days\')',
-      [user.id, token]
     );
     
     // Remove sensitive data
@@ -132,7 +120,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// Add logout function to authController.js
+
 exports.logout = async (req, res) => {
   const pool = req.app.locals.db;
   
