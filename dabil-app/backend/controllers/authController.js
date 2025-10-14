@@ -45,21 +45,30 @@ exports.signup = async (req, res) => {
     
     const user = result.rows[0];
     
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email }, 
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    // Remove sensitive data
-    delete user.password_hash;
-    
-    res.status(201).json({ 
-      user, 
-      token,
-      message: 'User created successfully'
-    });
+// Generate JWT
+const token = jwt.sign(
+  { userId: user.id, email: user.email }, 
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' }
+);
+
+// Create or update user session
+await pool.query(
+  `INSERT INTO user_sessions (user_id, token, expires_at) 
+   VALUES ($1, $2, $3) 
+   ON CONFLICT (user_id) 
+   DO UPDATE SET token = $2, expires_at = $3, created_at = CURRENT_TIMESTAMP`,
+  [user.id, token, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)]
+);
+
+// Remove sensitive data
+delete user.password_hash;
+
+res.status(201).json({ 
+  user, 
+  token,
+  message: 'User created successfully'
+});
   } catch (error) {
     console.error('Signup error:', error);
     res.status(500).json({ error: error.message });

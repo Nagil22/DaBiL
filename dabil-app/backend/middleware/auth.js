@@ -11,10 +11,6 @@ module.exports = async (req, res, next) => {
     
     console.log('🔐 Auth Middleware - Token length:', token.length);
     
-    // Decode without verification first to see structure
-    const decodedWithoutVerify = jwt.decode(token);
-    console.log('🔐 Decoded token (unverified):', JSON.stringify(decodedWithoutVerify, null, 2));
-    
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('🔐 Verified token:', JSON.stringify(decoded, null, 2));
     
@@ -36,9 +32,9 @@ module.exports = async (req, res, next) => {
       const staff = staffCheck.rows[0];
       
       req.staffId = decoded.staffId;
-      req.restaurantId = staff.restaurant_id; // Use from database, not token
+      req.restaurantId = staff.restaurant_id;
       req.userRole = decoded.role;
-      req.userId = decoded.staffId; // For compatibility
+      req.userId = decoded.staffId;
       
       console.log('🔐 Staff auth set:', {
         staffId: req.staffId,
@@ -49,26 +45,29 @@ module.exports = async (req, res, next) => {
       return next();
     }
     
-    // Handle user tokens (existing logic with session validation)
+    // Handle user tokens - FIXED: Only validate user exists, don't check user_sessions table
     if (decoded.userId) {
       console.log('🔐 User authentication detected');
       
-      // Session validation for users only
-      const sessionCheck = await req.app.locals.db.query(
-        'SELECT * FROM user_sessions WHERE user_id = $1 AND token = $2 AND expires_at > NOW()',
-        [decoded.userId, token]
+      // FIX: Only verify user exists and is active, don't check user_sessions
+      const userCheck = await req.app.locals.db.query(
+        'SELECT id, email, status FROM users WHERE id = $1 AND status = $2',
+        [decoded.userId, 'active']
       );
       
-      if (sessionCheck.rows.length === 0) {
-        return res.status(401).json({ error: 'Session expired or invalid. Please login again.' });
+      if (userCheck.rows.length === 0) {
+        return res.status(401).json({ error: 'User not found or inactive' });
       }
       
+      const user = userCheck.rows[0];
+      
       req.userId = decoded.userId;
-      req.userPhone = decoded.phone;
-      req.userRole = decoded.role || 'user';
+      req.userEmail = user.email;
+      req.userRole = 'user';
       
       console.log('🔐 User auth set:', {
         userId: req.userId,
+        email: req.userEmail,
         role: req.userRole
       });
       

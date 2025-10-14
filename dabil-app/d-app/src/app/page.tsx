@@ -334,7 +334,6 @@ const renderAdminPayouts = () => {
     </div>
   );
 };
-
 const handleQRCheckIn = async (restaurantId: string) => {
   // Check if current user is staff - staff can't check in as customers
   if (user && (user.role === 'staff' || user.role === 'waiter' || user.role === 'cashier' || user.role === 'chef')) {
@@ -355,10 +354,23 @@ const handleQRCheckIn = async (restaurantId: string) => {
   try {
     setLoading(true);
     
+    // DEBUG: Check token status before proceeding
+    console.log('🔍 Pre-checkin token status:');
+    apiService.debugTokenStatus();
+    
+    // Ensure we're using user token for check-in
+    const userTokenAvailable = apiService.useUserToken();
+    if (!userTokenAvailable) {
+      error('User authentication required. Please log in again.');
+      return;
+    }
+
+    console.log('🏪 Getting restaurant details...');
     const restaurantResponse = await apiService.getRestaurant(restaurantId);
     const restaurant = restaurantResponse.restaurant;
     
     // Check if user already has an active session
+    console.log('🔍 Checking for active session...');
     try {
       const activeSessionResponse = await apiService.getActiveSession();
       if (activeSessionResponse.session) {
@@ -379,7 +391,7 @@ const handleQRCheckIn = async (restaurantId: string) => {
       console.log('No active session found, creating new one');
     }
     
-    // IMPORTANT: Use user token for check-in, not staff token
+    console.log('🎫 Creating new check-in session...');
     const response = await apiService.checkIn({ 
       restaurantId: restaurantId,
       tableNumber: undefined,
@@ -395,7 +407,16 @@ const handleQRCheckIn = async (restaurantId: string) => {
     }, 100);
     
   } catch (error: any) {
-    error('Check-in Failed', error.message || 'Check-in failed. Please try again.');
+    console.error('❌ Check-in error:', error);
+    
+    // Provide more specific error messages
+    if (error.message.includes('401')) {
+      error('Authentication Failed', 'Please log in again to check in.');
+    } else if (error.message.includes('restaurant')) {
+      error('Restaurant Not Found', 'The restaurant could not be found. Please try another QR code.');
+    } else {
+      error('Check-in Failed', error.message || 'Check-in failed. Please try again.');
+    }
   } finally {
     setLoading(false);
   }
@@ -518,6 +539,14 @@ const handleAuth = async (data: {
 }) => {
   setLoading(true);
   try {
+    // Clear any existing tokens before new login
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dabil_token');
+      localStorage.removeItem('dabil_user');
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_user');
+    }
+    
     let response;
     
     if (authMode === 'login') {
@@ -624,6 +653,37 @@ const handleAuth = async (data: {
     setWalletBalance(0);
   }
 };
+// Add this function to your page.tsx
+const clearTokenConflicts = () => {
+  if (typeof window !== 'undefined') {
+    const currentUser = apiService.getCurrentUser();
+    
+    // If we have a user but staff tokens exist, clear staff tokens
+    if (currentUser && currentUser.role === 'user') {
+      const hasStaffToken = localStorage.getItem('pos_token');
+      if (hasStaffToken) {
+        console.log('🔄 Clearing conflicting staff tokens for user session');
+        localStorage.removeItem('pos_token');
+        localStorage.removeItem('pos_user');
+      }
+    }
+    
+    // If we have staff but user tokens exist, clear user tokens
+    if (currentUser && (currentUser.role === 'staff' || currentUser.role === 'waiter' || currentUser.role === 'cashier' || currentUser.role === 'chef')) {
+      const hasUserToken = localStorage.getItem('dabil_token');
+      if (hasUserToken) {
+        console.log('🔄 Clearing conflicting user tokens for staff session');
+        localStorage.removeItem('dabil_token');
+        localStorage.removeItem('dabil_user');
+      }
+    }
+  }
+};
+
+// Call this in your useEffect when user changes
+useEffect(() => {
+  clearTokenConflicts();
+}, [user]);
 
   // QR Scanner handler
 const handleQRScan = async (restaurantId: string) => {
