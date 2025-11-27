@@ -1,35 +1,3 @@
-// Restaurant managers manage their own restaurant only
-exports.getMyRestaurant = async (req, res) => {
-  const pool = req.app.locals.db;
-  
-  try {
-    // Get restaurant owned by this user (restaurant manager)
-    const result = await pool.query(
-      'SELECT * FROM restaurants WHERE owner_user_id = $1',
-      [req.userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Restaurant not found' });
-    }
-
-    const restaurant = result.rows[0]; // ✅ FIX: Define restaurant variable
-
-    const menuItemsResult = await pool.query(
-      'SELECT * FROM menu_items WHERE restaurant_id = $1 ORDER BY category, name',
-      [restaurant.id]  // ✅ Now restaurant is defined
-    );
-    
-    // ✅ Include menu items in the response
-    restaurant.menu_items = menuItemsResult.rows;
-    
-    res.json({ restaurant: restaurant });
-  } catch (error) {
-    console.error('Get restaurant error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
 exports.getMyRestaurantStats = async (req, res) => {
   const pool = req.app.locals.db;
   
@@ -46,50 +14,84 @@ exports.getMyRestaurantStats = async (req, res) => {
     
     const restaurantId = restaurantResult.rows[0].id;
 
-    // Get total customers (unique users who have completed sessions)
+    // Get total customers (unique users who have completed sessions at this restaurant)
     const totalCustomersResult = await pool.query(`
       SELECT COUNT(DISTINCT user_id) as total_customers
       FROM sessions 
       WHERE restaurant_id = $1 AND status = 'completed'
     `, [restaurantId]);
 
-    // Get total orders and revenue
+    // Get total orders and revenue - CORRECTED: Join through sessions table
     const ordersResult = await pool.query(`
       SELECT 
         COUNT(*) as total_orders,
-        COALESCE(SUM(total_amount), 0) as total_revenue
-      FROM orders 
-      WHERE restaurant_id = $1 AND status = 'completed'
+        COALESCE(SUM(o.total_amount), 0) as total_revenue
+      FROM orders o
+      JOIN sessions s ON o.session_id = s.id
+      WHERE s.restaurant_id = $1 AND o.status = 'served'
     `, [restaurantId]);
 
     // Get today's stats
     const todayResult = await pool.query(`
       SELECT 
         COUNT(*) as today_orders,
-        COALESCE(SUM(total_amount), 0) as today_revenue
-      FROM orders 
-      WHERE restaurant_id = $1 
-        AND status = 'completed'
-        AND DATE(created_at) = CURRENT_DATE
+        COALESCE(SUM(o.total_amount), 0) as today_revenue
+      FROM orders o
+      JOIN sessions s ON o.session_id = s.id
+      WHERE s.restaurant_id = $1 
+        AND o.status = 'served'
+        AND DATE(o.created_at) = CURRENT_DATE
     `, [restaurantId]);
 
     // Calculate average order value
-    const avgOrderValue = ordersResult.rows[0].total_orders > 0 
-      ? ordersResult.rows[0].total_revenue / ordersResult.rows[0].total_orders 
-      : 0;
+    const totalOrders = parseInt(ordersResult.rows[0].total_orders);
+    const totalRevenue = parseFloat(ordersResult.rows[0].total_revenue);
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     res.json({
       stats: {
         total_customers: parseInt(totalCustomersResult.rows[0].total_customers),
-        total_orders: parseInt(ordersResult.rows[0].total_orders),
-        total_revenue: parseFloat(ordersResult.rows[0].total_revenue),
+        total_orders: totalOrders,
+        total_revenue: totalRevenue,
         today_orders: parseInt(todayResult.rows[0].today_orders),
         today_revenue: parseFloat(todayResult.rows[0].today_revenue),
-        avg_order_value: parseFloat(avgOrderValue)
+        avg_order_value: parseFloat(avgOrderValue.toFixed(2))
       }
     });
   } catch (error) {
     console.error('Get restaurant stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getMyRestaurant = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    // Get restaurant owned by this user (restaurant manager)
+    const result = await pool.query(
+      'SELECT * FROM restaurants WHERE owner_user_id = $1',
+      [req.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found. You are not assigned as a manager for any restaurant.' });
+    }
+
+    const restaurant = result.rows[0];
+
+    // Get menu items for this restaurant
+    const menuItemsResult = await pool.query(
+      'SELECT * FROM menu_items WHERE restaurant_id = $1 ORDER BY category, name',
+      [restaurant.id]
+    );
+    
+    // Include menu items in the response
+    restaurant.menu_items = menuItemsResult.rows;
+    
+    res.json({ restaurant: restaurant });
+  } catch (error) {
+    console.error('Get restaurant error:', error);
     res.status(500).json({ error: error.message });
   }
 };
