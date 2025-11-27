@@ -29,6 +29,69 @@ exports.getMyRestaurant = async (req, res) => {
 };
 
 
+exports.getMyRestaurantStats = async (req, res) => {
+  const pool = req.app.locals.db;
+  
+  try {
+    // Get restaurant owned by this user
+    const restaurantResult = await pool.query(
+      'SELECT id FROM restaurants WHERE owner_user_id = $1',
+      [req.userId]
+    );
+    
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+    
+    const restaurantId = restaurantResult.rows[0].id;
+
+    // Get total customers (unique users who have completed sessions)
+    const totalCustomersResult = await pool.query(`
+      SELECT COUNT(DISTINCT user_id) as total_customers
+      FROM sessions 
+      WHERE restaurant_id = $1 AND status = 'completed'
+    `, [restaurantId]);
+
+    // Get total orders and revenue
+    const ordersResult = await pool.query(`
+      SELECT 
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total_amount), 0) as total_revenue
+      FROM orders 
+      WHERE restaurant_id = $1 AND status = 'completed'
+    `, [restaurantId]);
+
+    // Get today's stats
+    const todayResult = await pool.query(`
+      SELECT 
+        COUNT(*) as today_orders,
+        COALESCE(SUM(total_amount), 0) as today_revenue
+      FROM orders 
+      WHERE restaurant_id = $1 
+        AND status = 'completed'
+        AND DATE(created_at) = CURRENT_DATE
+    `, [restaurantId]);
+
+    // Calculate average order value
+    const avgOrderValue = ordersResult.rows[0].total_orders > 0 
+      ? ordersResult.rows[0].total_revenue / ordersResult.rows[0].total_orders 
+      : 0;
+
+    res.json({
+      stats: {
+        total_customers: parseInt(totalCustomersResult.rows[0].total_customers),
+        total_orders: parseInt(ordersResult.rows[0].total_orders),
+        total_revenue: parseFloat(ordersResult.rows[0].total_revenue),
+        today_orders: parseInt(todayResult.rows[0].today_orders),
+        today_revenue: parseFloat(todayResult.rows[0].today_revenue),
+        avg_order_value: parseFloat(avgOrderValue)
+      }
+    });
+  } catch (error) {
+    console.error('Get restaurant stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.createMyStaff = async (req, res) => {
   const pool = req.app.locals.db;
