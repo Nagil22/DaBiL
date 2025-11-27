@@ -393,7 +393,8 @@ class ApiService {
 async getRestaurantMenu(restaurantId?: string): Promise<{ menuItems: any[] }> {
   if (restaurantId) {
     console.log('🔐 Using POS menu with restaurant_id query param');
-    return this.makeRequest(`/pos/menu?restaurant_id=${restaurantId}`, {}, true);
+    // REMOVE forceUserToken = true for staff operations
+    return this.makeRequest(`/pos/menu?restaurant_id=${restaurantId}`);
   }
   
   console.log('🔐 Using POS menu endpoint for authenticated restaurant');
