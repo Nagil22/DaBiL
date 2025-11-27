@@ -20,33 +20,34 @@ exports.getMyRestaurant = async (req, res) => {
   }
 };
 
-exports.getMyRestaurantStats = async (req, res) => {
+exports.getMyRestaurant = async (req, res) => {
   const pool = req.app.locals.db;
   
   try {
-    const result = await pool.query(`
-      SELECT 
-        COUNT(DISTINCT s.user_id) as total_customers,
-        COUNT(o.id) as total_orders,
-        SUM(o.total_amount) as total_revenue,
-        AVG(o.total_amount) as avg_order_value
-      FROM restaurants r
-      LEFT JOIN sessions s ON r.id = s.restaurant_id
-      LEFT JOIN orders o ON s.id = o.session_id AND o.status = 'served'
-      WHERE r.owner_user_id = $1
-      GROUP BY r.id
-    `, [req.userId]);
+    // Get restaurant owned by this user (restaurant manager)
+    const result = await pool.query(
+      'SELECT * FROM restaurants WHERE owner_user_id = $1',
+      [req.userId]
+    );
     
-    const stats = result.rows[0] || {
-      total_customers: 0,
-      total_orders: 0, 
-      total_revenue: 0,
-      avg_order_value: 0
-    };
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
     
-    res.json({ stats });
+    const restaurant = result.rows[0];
+    
+    // ✅ ADD THIS: Get menu items for this restaurant
+    const menuItemsResult = await pool.query(
+      'SELECT * FROM menu_items WHERE restaurant_id = $1 ORDER BY category, name',
+      [restaurant.id]
+    );
+    
+    // ✅ ADD THIS: Include menu items in the response
+    restaurant.menu_items = menuItemsResult.rows;
+    
+    res.json({ restaurant });
   } catch (error) {
-    console.error('Get restaurant stats error:', error);
+    console.error('Get restaurant error:', error);
     res.status(500).json({ error: error.message });
   }
 };
