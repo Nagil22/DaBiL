@@ -41,33 +41,32 @@ export const RestaurantMenu: React.FC<RestaurantMenuProps> = ({
 
   // Fetch menu items on component mount
   const fetchMenu = async () => {
+  try {
+    console.log('🔍 Fetching menu for restaurant:', restaurant.id);
+    
+    // Use the POS menu endpoint with restaurant_id parameter
+    const response = await apiService.getRestaurantMenu(restaurant.id);
+    
+    console.log('✅ Menu items from API:', response.menuItems?.length || 0);
+    
+    setMenuItems(response.menuItems || []);
+  } catch (error: any) {
+    console.error('Failed to fetch menu:', error);
+    
+    // Fallback: Try the public restaurant endpoint
     try {
-      console.log('🔍 Fetching menu for restaurant:', restaurant);
-      
-      // Use the public restaurant endpoint to get menu items
-      const response = await apiService.getRestaurant(restaurant.id);
-      
-      // The menu items are included in the restaurant response
-      const menuItemsFromRestaurant = response.restaurant.menu_items || [];
-      console.log('✅ Menu items from restaurant:', menuItemsFromRestaurant.length);
-      
+      console.log('🔄 Trying fallback menu fetch...');
+      const fallbackResponse = await apiService.getRestaurant(restaurant.id);
+      const menuItemsFromRestaurant = fallbackResponse.restaurant.menu_items || [];
       setMenuItems(menuItemsFromRestaurant);
-    } catch (error: any) {
-      console.error('Failed to fetch menu:', error);
-      
-      // Fallback: Try the POS endpoint if available (this will likely fail for users)
-      try {
-        console.log('🔄 Trying fallback menu fetch...');
-        const fallbackResponse = await apiService.getRestaurantMenu();
-        setMenuItems(fallbackResponse.menuItems);
-      } catch (fallbackError) {
-        console.error('Fallback menu fetch also failed:', fallbackError);
-        setMenuItems([]);
-      }
-    } finally {
-      setLoading(false); // Make sure to set loading to false in all cases
+    } catch (fallbackError) {
+      console.error('Fallback menu fetch also failed:', fallbackError);
+      setMenuItems([]);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Add this useEffect to call fetchMenu when component mounts
   useEffect(() => {
