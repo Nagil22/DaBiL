@@ -469,10 +469,7 @@ const verifyPayment = async (reference: string) => {
     setStaffList(staffResponse.staff);
     
     // Fetch menu items
-    if (restaurantResponse.restaurant?.id) {
-      const menuResponse = await apiService.getRestaurantMenu();
-      setMenuItems(menuResponse.menuItems);
-    }
+    setMenuItems(restaurantResponse.restaurant.menu_items || []);
   } catch (error: any) {
     console.error('Failed to fetch manager data:', error);
   }
