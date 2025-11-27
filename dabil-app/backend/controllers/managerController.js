@@ -12,31 +12,7 @@ exports.getMyRestaurant = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
-    
-    res.json({ restaurant: result.rows[0] });
-  } catch (error) {
-    console.error('Get restaurant error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
 
-exports.getMyRestaurant = async (req, res) => {
-  const pool = req.app.locals.db;
-  
-  try {
-    // Get restaurant owned by this user (restaurant manager)
-    const result = await pool.query(
-      'SELECT * FROM restaurants WHERE owner_user_id = $1',
-      [req.userId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Restaurant not found' });
-    }
-    
-    const restaurant = result.rows[0];
-    
-    // ✅ ADD THIS: Get menu items for this restaurant
     const menuItemsResult = await pool.query(
       'SELECT * FROM menu_items WHERE restaurant_id = $1 ORDER BY category, name',
       [restaurant.id]
@@ -45,12 +21,14 @@ exports.getMyRestaurant = async (req, res) => {
     // ✅ ADD THIS: Include menu items in the response
     restaurant.menu_items = menuItemsResult.rows;
     
-    res.json({ restaurant });
+    res.json({ restaurant: result.rows[0] });
   } catch (error) {
     console.error('Get restaurant error:', error);
     res.status(500).json({ error: error.message });
   }
 };
+
+
 
 exports.createMyStaff = async (req, res) => {
   const pool = req.app.locals.db;
