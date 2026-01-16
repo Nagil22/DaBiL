@@ -19,7 +19,8 @@ app.locals.db = pool;
 // Middleware - UPDATED CORS CONFIGURATION
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://localhost:3000'
+  'https://localhost:3000',
+  'https://www.usedabil.com'
 ];
 
 // Add ngrok domains dynamically
