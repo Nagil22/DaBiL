@@ -180,3 +180,7 @@ node_modules/
 dist/
 build/
 .DS_Store
+
+# Wallet source protection
+compile-wallet.js
+Dockerfile.wallet

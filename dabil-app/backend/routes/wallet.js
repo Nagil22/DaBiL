@@ -1,6 +1,9 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
-const walletController = require('../controllers/walletController');
+require('bytenode');
+const walletController = require('../controllers/walletController.jsc');
 const auth = require('../middleware/auth');
 
 router.use(auth);
